@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartShopper Admin Dashboard</title>
+  <meta name="description" content="Admin dashboard for managing SmartShopper products, prices, retailers and users." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Firebase SDK (compat version - works without bundler) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <!-- ── Loading screen ─────────────────────────────────────────────────── -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-box">
+      <div class="loading-spinner"></div>
+      <p>Connecting to Firebase…</p>
+    </div>
+  </div>
+
+  <!-- ── Login screen ───────────────────────────────────────────────────── -->
+  <div id="login-screen" class="login-screen" style="display:none">
+    <div class="login-card">
+      <div class="login-logo"><img src="logo.png" alt="SmartShopper Logo" /></div>
+      <h2>SmartShopper Admin</h2>
+      <p class="login-subtitle">Sign in to access the dashboard</p>
+      <div id="login-error" class="login-error" style="display:none"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="admin@smartshopper.my" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()" />
+      </div>
+      <button class="btn-primary" id="login-btn" onclick="handleLogin()" style="width:100%;margin-top:8px">Sign In</button>
+    </div>
+  </div>
+
+  <!-- ── Main app (hidden until logged in) ──────────────────────────────── -->
+  <div id="app" style="display:none;width:100%;min-height:100vh;display:none">
+  <!-- ── Sidebar ───────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon"><img src="logo.png" alt="Logo" /></div>
+      <div class="logo-text">
+        <span class="logo-main">SmartShopper</span>
+        <span class="logo-sub">Admin Panel</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="#" class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="products" onclick="showPage('products',this)">
+        <span class="nav-icon">📦</span><span>Products</span>
+      </a>
+      <a href="#" class="nav-item" data-page="prices" onclick="showPage('prices',this)">
+        <span class="nav-icon">💰</span><span>Prices</span>
+      </a>
+      <a href="#" class="nav-item" data-page="retailers" onclick="showPage('retailers',this)">
+        <span class="nav-icon">🏪</span><span>Retailers</span>
+      </a>
+
+      <div class="nav-section-label" style="margin-top:1.5rem;">Management</div>
+      <a href="#" class="nav-item" data-page="users" onclick="showPage('users',this)">
+        <span class="nav-icon">👥</span><span>Users</span>
+      </a>
+      <a href="#" class="nav-item" data-page="analytics" onclick="showPage('analytics',this)">
+        <span class="nav-icon">📈</span><span>Analytics</span>
+      </a>
+      <a href="#" class="nav-item" data-page="scraper" onclick="showPage('scraper',this)">
+        <span class="nav-icon">🕷️</span><span>Scraper</span>
+      </a>
+      <a href="#" class="nav-item" data-page="settings" onclick="showPage('settings',this)">
+        <span class="nav-icon">⚙️</span><span>Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="admin-avatar">A</div>
+      <div class="admin-info">
+        <span class="admin-name">Admin</span>
+        <span class="admin-role">Super Admin</span>
+      </div>
+      <button class="logout-btn" title="Logout">⏻</button>
+    </div>
+  </aside>
+
+  <!-- ── Main content ───────────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title" id="page-title">Dashboard</div>
+      <div class="topbar-actions">
+        <div class="search-wrap">
+          <input type="text" class="topbar-search" placeholder="Search…" id="globalSearch" oninput="handleGlobalSearch()" />
+          <span class="search-icon">🔍</span>
+        </div>
+        <div class="notif-btn" title="Notifications">🔔 <span class="badge">3</span></div>
+      </div>
+    </header>
+
+    <!-- ── DASHBOARD PAGE ──────────────────────────────────────────────── -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>Welcome back, Admin 👋</h1>
+        <p>Here's what's happening with SmartShopper today.</p>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#2e7d32,#4caf50)">📦</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-products">6</span>
+            <span class="stat-label">Total Products</span>
+            <span class="stat-delta positive">+2 this month</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#1565c0,#42a5f5)">💰</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-prices">18</span>
+            <span class="stat-label">Price Entries</span>
+            <span class="stat-delta positive">+5 this week</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#6a1b9a,#ab47bc)">🏪</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-retailers">3</span>
+            <span class="stat-label">Active Retailers</span>
+            <span class="stat-delta neutral">No change</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#bf360c,#ff7043)">👥</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-users">124</span>
+            <span class="stat-label">Registered Users</span>
+            <span class="stat-delta positive">+14 this week</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent + Quick add -->
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>Recent Products</h3>
+            <button class="btn-sm" onclick="showPage('products', document.querySelector('[data-page=products]'))">View All</button>
+          </div>
+          <table class="mini-table">
+            <thead><tr><th>Name</th><th>Brand</th><th>Type</th><th>Status</th></tr></thead>
+            <tbody id="recent-products-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Price Summary</h3>
+            <span class="chip">Live</span>
+          </div>
+          <div id="price-summary-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PRODUCTS PAGE ───────────────────────────────────────────────── -->
+    <section class="page" id="page-products">
+      <div class="page-header">
+        <div>
+          <h1>Products</h1>
+          <p>Manage all grocery products in the system.</p>
+        </div>
+        <button class="btn-primary" onclick="openModal('add-product-modal')">+ Add Product</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <input type="text" class="table-search" placeholder="Search products…" oninput="filterTable('products-table', this.value)" />
+          <div class="filter-row">
+            <select onchange="filterByColumn('products-table', 2, this.value)">
+              <option value="">All Brands</option>
+              <option>Nestlé</option>
+              <option>Aik Cheong</option>
+              <option>Faiza</option>
+              <option>Unilever</option>
+            </select>
+            <select onchange="filterByColumn('products-table', 3, this.value)">
+              <option value="">All Types</option>
+              <option>Drinks</option>
+              <option>Instant Noodles</option>
+              <option>Rice & Grains</option>
+              <option>Household Cleaning</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="products-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Product</th><th>Brand</th><th>Product Type</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PRICES PAGE ─────────────────────────────────────────────────── -->
+    <section class="page" id="page-prices">
+      <div class="page-header">
+        <div>
+          <h1>Prices</h1>
+          <p>View and update product prices across retailers.</p>
+        </div>
+        <button class="btn-primary" onclick="openModal('add-price-modal')">+ Add Price</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <input type="text" class="table-search" placeholder="Search prices…" oninput="filterTable('prices-table', this.value)" />
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="prices-table">
+            <thead>
+              <tr><th>ID</th><th>Product</th><th>Retailer</th><th>Price (RM)</th><th>Updated</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="prices-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RETAILERS PAGE ─────────────────────────────────────────────── -->
+    <section class="page" id="page-retailers">
+      <div class="page-header">
+        <div>
+          <h1>Retailers</h1>
+          <p>Manage store partners and their information.</p>
+        </div>
+        <button class="btn-primary" onclick="openModal('add-retailer-modal')">+ Add Retailer</button>
+      </div>
+
+      <div class="retailers-grid" id="retailers-grid"></div>
+    </section>
+
+    <!-- ── USERS PAGE ─────────────────────────────────────────────────── -->
+    <section class="page" id="page-users">
+      <div class="page-header">
+        <div>
+          <h1>Users</h1>
+          <p>Manage registered SmartShopper users.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <input type="text" class="table-search" placeholder="Search users…" oninput="filterTable('users-table', this.value)" />
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="users-table">
+            <thead>
+              <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Status</th></tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ANALYTICS PAGE ─────────────────────────────────────────────── -->
+    <section class="page" id="page-analytics">
+      <div class="page-header">
+        <h1>Analytics</h1>
+        <p>Insights and data trends for SmartShopper.</p>
+      </div>
+
+      <div class="analytics-grid">
+        <div class="card">
+          <div class="card-header"><h3>Price Comparison — Milo Activ-Go</h3></div>
+          <div class="bar-chart" id="chart-milo"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Price Comparison — Maggi Noodles</h3></div>
+          <div class="bar-chart" id="chart-maggi"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Products by Brand</h3></div>
+          <div class="donut-chart" id="chart-brands"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Products by Category</h3></div>
+          <div class="donut-chart" id="chart-types"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SCRAPER PAGE ──────────────────────────────────────────────────── -->
+    <section class="page" id="page-scraper">
+      <div class="page-header">
+        <div>
+          <h1>🕷️ Price Scraper Scheduler</h1>
+          <p>Manage automated price scraping jobs for all retailers.</p>
+        </div>
+        <button class="btn-primary" onclick="runAllScrapers()">⚡ Run All Now</button>
+      </div>
+
+      <!-- Status overview cards -->
+      <div class="scraper-status-grid">
+        <div class="scraper-stat-card" style="border-left:4px solid #4caf50">
+          <div class="scraper-stat-icon" style="background:linear-gradient(135deg,#2e7d32,#4caf50)">⏰</div>
+          <div><div class="scraper-stat-value" id="s-scheduled">3</div><div class="scraper-stat-label">Scheduled Jobs</div></div>
+        </div>
+        <div class="scraper-stat-card" style="border-left:4px solid #1565c0">
+          <div class="scraper-stat-icon" style="background:linear-gradient(135deg,#1565c0,#42a5f5)">⚙️</div>
+          <div><div class="scraper-stat-value" id="s-running">0</div><div class="scraper-stat-label">Currently Running</div></div>
+        </div>
+        <div class="scraper-stat-card" style="border-left:4px solid #00897b">
+          <div class="scraper-stat-icon" style="background:linear-gradient(135deg,#00695c,#00897b)">✅</div>
+          <div><div class="scraper-stat-value" id="s-completed">18</div><div class="scraper-stat-label">Completed (24h)</div></div>
+        </div>
+        <div class="scraper-stat-card" style="border-left:4px solid #e53935">
+          <div class="scraper-stat-icon" style="background:linear-gradient(135deg,#b71c1c,#e53935)">❌</div>
+          <div><div class="scraper-stat-value" id="s-failed">1</div><div class="scraper-stat-label">Failed (24h)</div></div>
+        </div>
+      </div>
+
+      <!-- Scheduler table -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <h3>📅 Scheduled Scraping Jobs</h3>
+          <span class="chip">Auto-refresh</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="scraper-table">
+            <thead>
+              <tr>
+                <th>Retailer</th>
+                <th>Target URL</th>
+                <th>Frequency</th>
+                <th>⏰ Run Time</th>
+                <th>Last Run</th>
+                <th>Next Run</th>
+                <th>Status</th>
+                <th>Items Scraped</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="scraper-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Activity log -->
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 Scraping Activity Log</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="log-filter" onchange="filterLog()" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.8rem;background:var(--bg);color:var(--text)">
+              <option value="">All Levels</option>
+              <option value="INFO">Info</option>
+              <option value="SUCCESS">Success</option>
+              <option value="WARN">Warning</option>
+              <option value="ERROR">Error</option>
+            </select>
+            <button class="btn-sm" onclick="clearLog()">🗑 Clear</button>
+          </div>
+        </div>
+        <div id="scraper-log" style="font-family:monospace;font-size:.78rem;max-height:320px;overflow-y:auto;padding:16px;background:var(--bg);line-height:1.8"></div>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS PAGE ─────────────────────────────────────────────── -->
+    <section class="page" id="page-settings">
+      <div class="page-header">
+        <h1>Settings</h1>
+        <p>Configure the SmartShopper admin panel.</p>
+      </div>
+
+      <div class="settings-grid">
+        <div class="card">
+          <div class="card-header"><h3>General</h3></div>
+          <div class="settings-form">
+            <div class="form-group">
+              <label>Admin Email</label>
+              <input type="email" value="admin@smartshopper.my" />
+            </div>
+            <div class="form-group">
+              <label>Currency</label>
+              <select><option>MYR (RM)</option><option>USD ($)</option></select>
+            </div>
+            <button class="btn-primary" onclick="showToast('Settings saved!')">Save Changes</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Appearance & System</h3></div>
+          <div class="settings-form">
+            <div class="form-group toggle-row">
+              <label>Dark Mode</label>
+              <label class="toggle"><input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()" /><span class="slider"></span></label>
+            </div>
+            <div class="form-group toggle-row">
+              <label>Compact Sidebar</label>
+              <label class="toggle"><input type="checkbox" onchange="toggleCompact()" /><span class="slider"></span></label>
+            </div>
+            <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
+              <h3 style="font-size: .9rem; margin-bottom: 8px; color: var(--text-2);">Database Management</h3>
+              <p style="font-size: .75rem; color: var(--text-3); margin-bottom: 12px;">Populate your Firestore with initial products and prices.</p>
+              <button class="btn-secondary" onclick="seedDatabase()" style="width: 100%;">🌱 Seed Initial Data</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── MODALS ──────────────────────────────────────────────────────────── -->
+
+  <!-- Add Product Modal -->
+  <div class="modal-overlay" id="add-product-modal" onclick="closeModalOutside(event,'add-product-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Product</h3>
+        <button onclick="closeModal('add-product-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Product Name</label><input type="text" id="new-product-name" placeholder="e.g. Milo Activ-Go" /></div>
+        <div class="form-group"><label>Description</label><input type="text" id="new-product-desc" placeholder="e.g. Chocolate malt drink - 400g" /></div>
+        <div class="form-group">
+          <label>Brand (Category)</label>
+          <select id="new-product-brand">
+            <option>Nestlé</option><option>Aik Cheong</option><option>Faiza</option><option>Unilever</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Product Type</label>
+          <select id="new-product-type">
+            <option>Drinks</option><option>Instant Noodles</option><option>Rice & Grains</option><option>Household Cleaning</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Image URL</label><input type="text" id="new-product-image" placeholder="https://example.com/image.png" /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('add-product-modal')">Cancel</button>
+        <button class="btn-primary" onclick="addProduct()">Add Product</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Price Modal -->
+  <div class="modal-overlay" id="add-price-modal" onclick="closeModalOutside(event,'add-price-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Price Entry</h3>
+        <button onclick="closeModal('add-price-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Product</label>
+          <select id="new-price-product">
+            <option value="1">Milo Activ-Go</option>
+            <option value="2">Maggi Noodles</option>
+            <option value="3">Teh Tarik Mix</option>
+            <option value="4">Beras Wangi</option>
+            <option value="6">Nescafé Gold</option>
+            <option value="7">Sunlight Dishwashing Liquid</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Retailer</label>
+          <select id="new-price-retailer">
+            <option value="1">Mydin</option>
+            <option value="2">Giant</option>
+            <option value="5">Lotus's</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Price (RM)</label><input type="number" id="new-price-value" placeholder="e.g. 12.50" step="0.01" min="0" /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('add-price-modal')">Cancel</button>
+        <button class="btn-primary" onclick="addPrice()">Add Price</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Retailer Modal -->
+  <div class="modal-overlay" id="add-retailer-modal" onclick="closeModalOutside(event,'add-retailer-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Retailer</h3>
+        <button onclick="closeModal('add-retailer-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Retailer Name</label><input type="text" id="new-retailer-name" placeholder="e.g. Tesco" /></div>
+        <div class="form-group"><label>Website URL</label><input type="url" id="new-retailer-url" placeholder="https://example.com" /></div>
+        <div class="form-group"><label>Logo (Emoji or Image URL)</label><input type="text" id="new-retailer-icon" placeholder="e.g. 🏬 or https://..." /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('add-retailer-modal')">Cancel</button>
+        <button class="btn-primary" onclick="addRetailer()">Add Retailer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Product Modal -->
+  <div class="modal-overlay" id="edit-product-modal" onclick="closeModalOutside(event,'edit-product-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Edit Product</h3>
+        <button onclick="closeModal('edit-product-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-product-id" />
+        <div class="form-group"><label>Product Name</label><input type="text" id="edit-product-name" /></div>
+        <div class="form-group"><label>Description</label><input type="text" id="edit-product-desc" /></div>
+        <div class="form-group"><label>Brand</label>
+          <select id="edit-product-brand">
+            <option>Nestlé</option><option>Aik Cheong</option><option>Faiza</option><option>Unilever</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Product Type</label>
+          <select id="edit-product-type">
+            <option>Drinks</option><option>Instant Noodles</option><option>Rice & Grains</option><option>Household Cleaning</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Image URL</label><input type="text" id="edit-product-image" /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('edit-product-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveEditProduct()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Price Modal -->
+  <div class="modal-overlay" id="edit-price-modal" onclick="closeModalOutside(event,'edit-price-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Edit Price Entry</h3>
+        <button onclick="closeModal('edit-price-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-price-id" />
+        <div class="form-group"><label>Product</label>
+          <select id="edit-price-product"></select>
+        </div>
+        <div class="form-group"><label>Retailer</label>
+          <select id="edit-price-retailer"></select>
+        </div>
+        <div class="form-group"><label>Price (RM)</label>
+          <input type="number" id="edit-price-value" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('edit-price-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveEditPrice()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Retailer Modal -->
+  <div class="modal-overlay" id="edit-retailer-modal" onclick="closeModalOutside(event,'edit-retailer-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Edit Retailer</h3>
+        <button onclick="closeModal('edit-retailer-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-retailer-id" />
+        <div class="form-group"><label>Retailer Name</label><input type="text" id="edit-retailer-name" /></div>
+        <div class="form-group"><label>Website URL</label><input type="url" id="edit-retailer-url" /></div>
+        <div class="form-group"><label>Logo (Emoji or Image URL)</label><input type="text" id="edit-retailer-icon" /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('edit-retailer-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveEditRetailer()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /#app -->
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

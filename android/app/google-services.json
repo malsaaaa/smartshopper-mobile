@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "884092017007",
+    "project_id": "smartshopper-mobile-4df1e",
+    "storage_bucket": "smartshopper-mobile-4df1e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:884092017007:android:3343aa0e0ce10c25ddf09a",
+        "android_client_info": {
+          "package_name": "com.smartshopper.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "884092017007-t1fo2qe34qelu7eca0f9cg3c7thimpkl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.smartshopper.mobile",
+            "certificate_hash": "008b5340016725b972b9143413ec97b4c14bf0ea"
+          }
+        },
+        {
+          "client_id": "884092017007-kmqho2q8p15eslm5ms2bj68mva6tuq6s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoFmctT8jtsis5qRT_hLwY8mynoXqkauw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "884092017007-kmqho2q8p15eslm5ms2bj68mva6tuq6s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

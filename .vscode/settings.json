@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "dart": {
+      "command": "C:\\dart\\dart-sdk\\bin\\dart.exe",
+      "args": [
+        "mcp-server"
+      ]
+    }
+  },
+  "java.configuration.updateBuildConfiguration": "interactive"
+}
