@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/data/mock_data.dart';
+import 'package:smartshopper_mobile/services/notification_service.dart';
 
 // ============== STATE PROVIDERS ==============
 
@@ -23,10 +24,146 @@ final unreadNotificationsProvider = Provider<List<Notification>>((ref) {
   return notifications.where((n) => !n.isRead).toList();
 });
 
+/// Discount notifications only
+final discountNotificationsProvider = Provider<List<Notification>>((ref) {
+  final notifications = ref.watch(notificationsProvider);
+  return notifications
+      .where((n) => NotificationService.isDiscountNotification(n))
+      .toList();
+});
+
+/// Notification frequency preference (real-time, daily, or weekly)
+final notificationFrequencyProvider =
+    StateProvider<String>((ref) => 'real-time'); // 'real-time', 'daily', 'weekly'
+
+/// Enable/disable discount notifications
+final discountNotificationsEnabledProvider =
+    StateProvider<bool>((ref) => true);
+
 // ============== STATE NOTIFIER ==============
 
 class NotificationsNotifier extends StateNotifier<List<Notification>> {
   NotificationsNotifier() : super(MockData.notifications);
+
+  /// Create and add a discount notification
+  void addDiscountNotification({
+    required String type, // 'price_drop', 'new_discount', 'price_target'
+    required int userId,
+    required String productId,
+    required String productName,
+    String? productImage,
+    required double? oldPrice,
+    required double newPrice,
+    required String retailer,
+    DateTime? expiresAt,
+    String? actionUrl,
+  }) {
+    final id = state.isNotEmpty ? state.first.id + 1 : 1;
+
+    late Notification notification;
+
+    switch (type) {
+      case 'price_drop':
+        notification = NotificationService.createPriceDropNotification(
+          id: id,
+          userId: userId,
+          productId: productId,
+          productName: productName,
+          productImage: productImage,
+          oldPrice: oldPrice ?? newPrice,
+          newPrice: newPrice,
+          retailer: retailer,
+          expiresAt: expiresAt,
+          actionUrl: actionUrl,
+        );
+        break;
+      case 'new_discount':
+        notification = NotificationService.createNewDiscountNotification(
+          id: id,
+          userId: userId,
+          productId: productId,
+          productName: productName,
+          productImage: productImage,
+          currentPrice: oldPrice ?? newPrice,
+          discountedPrice: newPrice,
+          retailer: retailer,
+          expiresAt: expiresAt,
+          actionUrl: actionUrl,
+        );
+        break;
+      case 'price_target':
+        notification = NotificationService.createPriceTargetNotification(
+          id: id,
+          userId: userId,
+          productId: productId,
+          productName: productName,
+          productImage: productImage,
+          currentPrice: newPrice,
+          targetPrice: oldPrice ?? newPrice,
+          retailer: retailer,
+          actionUrl: actionUrl,
+        );
+        break;
+      default:
+        return;
+    }
+
+    state = [notification, ...state];
+  }
+
+  /// Create and add a time-limited deal notification
+  void addTimeLimitedDealNotification({
+    required int userId,
+    required String productId,
+    required String productName,
+    String? productImage,
+    required double originalPrice,
+    required double dealPrice,
+    required String retailer,
+    required DateTime expiresAt,
+    String? actionUrl,
+  }) {
+    final id = state.isNotEmpty ? state.first.id + 1 : 1;
+    final notification = NotificationService.createTimeLimitedDealNotification(
+      id: id,
+      userId: userId,
+      productId: productId,
+      productName: productName,
+      productImage: productImage,
+      originalPrice: originalPrice,
+      dealPrice: dealPrice,
+      retailer: retailer,
+      expiresAt: expiresAt,
+      actionUrl: actionUrl,
+    );
+    state = [notification, ...state];
+  }
+
+  /// Create and add a flash sale notification
+  void addFlashSaleNotification({
+    required int userId,
+    required String productId,
+    required String productName,
+    String? productImage,
+    required double salePrice,
+    required String retailer,
+    required DateTime endsAt,
+    String? actionUrl,
+  }) {
+    final id = state.isNotEmpty ? state.first.id + 1 : 1;
+    final notification = NotificationService.createFlashSaleNotification(
+      id: id,
+      userId: userId,
+      productId: productId,
+      productName: productName,
+      productImage: productImage,
+      salePrice: salePrice,
+      retailer: retailer,
+      endsAt: endsAt,
+      actionUrl: actionUrl,
+    );
+    state = [notification, ...state];
+  }
 
   /// Mark notification as read
   void markAsRead(int notificationId) {
@@ -68,3 +205,4 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     state = [notification, ...state];
   }
 }
+

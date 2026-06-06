@@ -8,6 +8,7 @@ class AppTheme {
 
   // ============== SPACING ==============
   static const double spacing4 = 4.0;
+  static const double spacing6 = 6.0;
   static const double spacing8 = 8.0;
   static const double spacing12 = 12.0;
   static const double spacing16 = 16.0;
@@ -19,38 +20,41 @@ class AppTheme {
   static const double borderRadiusCard = 12.0;
 
   // ============== COLORS - PRIMARY ==============
-  static const Color primary = Color(0xFF1B8C4E);     // Forest Green
-  static const Color primaryLight = Color(0xFFE6F5EC); // Mint tint
-  static const Color primaryDark = Color(0xFF0F5C31);  // Deep forest
+  static const Color primary = Color(0xFF00D084);     // Bright Emerald
+  static const Color primaryLight = Color(0xFFD4F5EA); // Light mint
+  static const Color primaryDark = Color(0xFF00A862);  // Deep emerald
 
   // ============== COLORS - SECONDARY ==============
-  static const Color secondary = Color(0xFF2ECC71);    // Emerald accent
-  static const Color secondaryLight = Color(0xFFD4EFDF);
-  static const Color secondaryDark = Color(0xFF1A9E54);
+  static const Color secondary = Color(0xFFFF6B35);    // Warm Orange
+  static const Color secondaryLight = Color(0xFFFFEEDF);
+  static const Color secondaryDark = Color(0xFFE85D04);
 
   // ============== COLORS - ACCENT ==============
-  static const Color accentOrange = Color(0xFFFF6B35); // Sale/Discount
+  static const Color accentOrange = Color(0xFFFF6B35); // Warm Orange
   static const Color accentOrangeLight = Color(0xFFFFE8DD);
+  static const Color accentYellow = Color(0xFFFFD60A); // Golden Yellow
+  static const Color accentBlue = Color(0xFF4D7DFF);   // Modern Blue
 
   // ============== COLORS - STATUS ==============
-  static const Color success = Color(0xFF1B8C4E);
-  static const Color warning = Color(0xFFFFA500);
+  static const Color success = Color(0xFF00D084);
+  static const Color warning = Color(0xFFFF6B35);
   static const Color error = Color(0xFFD32F2F);
-  static const Color info = Color(0xFF1B8C4E); // green instead of blue
+  static const Color info = Color(0xFF4D7DFF); // Modern blue
 
   // ============== COLORS - NEUTRAL ==============
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color background = Color(0xFFF4F8F6); // very slight green tint
+  static const Color background = Color(0xFFF8FFFE); // Clean white with slight tint
   static const Color surfaceVariant = Color(0xFFEEEEEE);
 
-  static const Color textPrimary = Color(0xFF1A2E1F);  // Dark green-black
-  static const Color textSecondary = Color(0xFF5A7160); // Muted green-grey
-  static const Color textTertiary = Color(0xFFBDBDBD);
-  static const Color divider = Color(0xFFDDE8E1);       // Green-tinted divider
+  static const Color textPrimary = Color(0xFF1A2E1F);  // Dark navy-black
+  static const Color textSecondary = Color(0xFF6B7280); // Modern grey
+  static const Color textTertiary = Color(0xFFD1D5DB);
+  static const Color divider = Color(0xFFE5E7EB);       // Modern light grey divider
 
   // ============== COLORS - SPECIAL ==============
-  static const Color bestPrice = Color(0xFF1B8C4E);
-  static const Color bestPriceLight = Color(0xFFD4EFDF);
+  static const Color bestPrice = Color(0xFF00D084);
+  static const Color bestPriceLight = Color(0xFFD4F5EA);
+  static const Color salePrice = Color(0xFFFF6B35);     // Warm orange for sales
 
   // ============== LIGHT THEME ==============
   static ThemeData get lightTheme {

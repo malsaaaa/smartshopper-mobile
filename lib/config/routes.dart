@@ -4,6 +4,7 @@ import 'package:smartshopper_mobile/screens/auth/firebase_auth_screen.dart';
 import 'package:smartshopper_mobile/screens/home/home_screen.dart';
 import 'package:smartshopper_mobile/screens/products/index.dart';
 import 'package:smartshopper_mobile/screens/profile/index.dart';
+import 'package:smartshopper_mobile/screens/notifications/discount_notifications_demo.dart';
 
 /// Central route configuration for the app
 class RoutesConfig {
@@ -19,6 +20,7 @@ class RoutesConfig {
   static const String allPrices = '/all-prices';
   static const String accountSettings = '/account-settings';
   static const String notifications = '/notifications';
+  static const String discountNotificationsDemo = '/discount-notifications-demo';
   static const String about = '/about';
   static const String productSearch = '/product-search';
   static const String productDetails = '/product-details';
@@ -67,6 +69,8 @@ class RoutesConfig {
         return _buildRoute(const AccountSettingsScreen(), settings);
       case notifications:
         return _buildRoute(const NotificationsScreen(), settings);
+      case discountNotificationsDemo:
+        return _buildRoute(const DiscountNotificationsDemoScreen(), settings);
       case about:
         return _buildRoute(const AboutScreen(), settings);
 

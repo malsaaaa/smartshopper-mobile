@@ -4,14 +4,46 @@ import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/config/firebase_config.dart';
 import 'package:smartshopper_mobile/config/routes.dart';
 import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
+import 'package:smartshopper_mobile/providers/notifications_provider.dart';
 import 'package:smartshopper_mobile/providers/theme_provider.dart';
 import 'package:smartshopper_mobile/screens/home/home_screen.dart';
 import 'package:smartshopper_mobile/screens/auth/firebase_auth_screen.dart';
 
+// Global navigatorKey for handling push notification navigation
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+// Global container for FCM initialization before ProviderScope
+late final ProviderContainer _container;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeFirebase();
+  
+  // Create a container to access providers before the app starts
+  _container = ProviderContainer();
+  
+  // Initialize FCM with notification handling
+  await initializeFCM(
+    onNotificationTap: _handleNotificationTap,
+    onNotificationReceived: (notification) {
+      _container.read(notificationsProvider.notifier).addNotification(notification);
+    },
+  );
+  
   runApp(const ProviderScope(child: MyApp()));
+}
+
+/// Handle notification tap navigation
+void _handleNotificationTap(String? route, Map<String, dynamic>? data) {
+  if (route == null) return;
+  
+  print('🔔 Handling notification tap: $route');
+  
+  // Navigate to the appropriate screen
+  navigatorKey.currentState?.pushNamed(
+    route,
+    arguments: data,
+  );
 }
 
 class MyApp extends ConsumerWidget {
@@ -27,6 +59,7 @@ class MyApp extends ConsumerWidget {
       themeMode: themeMode,
       onGenerateRoute: RoutesConfig.generateRoute,
       home: const AuthGuard(),
+      navigatorKey: navigatorKey,
       navigatorObservers: [AppRouteObserver()],
       debugShowCheckedModeBanner: false,
     );

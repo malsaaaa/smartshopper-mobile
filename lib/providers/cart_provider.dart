@@ -3,6 +3,7 @@ import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
 import 'package:smartshopper_mobile/providers/firestore_service_provider.dart';
+import 'package:smartshopper_mobile/providers/notifications_provider.dart';
 import 'package:smartshopper_mobile/services/location_service.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';
 import 'package:smartshopper_mobile/providers/location_provider.dart';
@@ -82,6 +83,24 @@ class CartNotifier extends StateNotifier<AsyncValue<ShoppingList?>> {
       retailerLogoUrl: selectedPrice?.retailer?.logoUrl,
       imageUrl: product.imageUrl,
     );
+
+    // Create in-app notification
+    final retailerName = selectedPrice?.retailer?.name ?? 'Unknown';
+    final price = selectedPrice?.price ?? 0.0;
+    final notificationId = DateTime.now().millisecondsSinceEpoch;
+    final userIdString = _ref.read(currentUserIdProvider) ?? '';
+    
+    final notification = Notification(
+      id: notificationId,
+      userId: int.tryParse(userIdString) ?? 0,
+      title: '✅ Added to Cart',
+      message: '$quantity × ${product.name} from $retailerName (RM${price.toStringAsFixed(2)})',
+      type: 'system',
+      isRead: false,
+      createdAt: DateTime.now(),
+    );
+
+    _ref.read(notificationsProvider.notifier).addNotification(notification);
 
     // Optimistic splice into state
     state.whenData((cart) {

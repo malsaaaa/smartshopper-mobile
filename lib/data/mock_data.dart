@@ -481,56 +481,7 @@ class MockData {
   }
 
   // ============== NOTIFICATIONS ==============
-  static final notifications = [
-    Notification(
-      id: 1,
-      userId: 1,
-      title: 'Price Drop Alert!',
-      message: 'Milo Activ-Go dropped to RM11.99 at Giant',
-      type: 'price_drop',
-      isRead: false,
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    Notification(
-      id: 2,
-      userId: 1,
-      title: 'Budget Alert',
-      message: 'You\'ve spent 75% of your monthly budget',
-      type: 'budget_alert',
-      isRead: false,
-      createdAt: DateTime.now().subtract(const Duration(hours: 4)),
-    ),
-    Notification(
-      id: 3,
-      userId: 1,
-      title: 'New Deal Available',
-      message: 'Maggi Noodles: Buy 5, Get 20% Off at Mydin',
-      type: 'deal',
-      isRead: true,
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-      readAt: DateTime.now().subtract(const Duration(hours: 7)),
-    ),
-    Notification(
-      id: 4,
-      userId: 1,
-      title: 'Price Drop Alert!',
-      message: 'Teh Tarik Mix on sale for RM7.50 at Lotus\'s',
-      type: 'price_drop',
-      isRead: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      readAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    Notification(
-      id: 5,
-      userId: 1,
-      title: 'System Update',
-      message: 'New features available in SmartShopper v2.5',
-      type: 'system',
-      isRead: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      readAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-  ];
+  static final notifications = <Notification>[];
 
   // ============== CONVENIENCE GETTERS ==============
 
