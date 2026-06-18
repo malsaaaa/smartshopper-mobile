@@ -127,8 +127,22 @@ A companion web admin dashboard is available in the `smartshopper_admin/` direct
 - Product catalog administration
 - Retailer management
 - System analytics
+- Notification payload composition for Firebase Console or external backends
 
 Build and deploy separately as a web application.
+
+## 💸 Low-Cost Deployment
+
+The lowest-cost setup for this repo is:
+- Firestore rules
+- Hosting for the admin dashboard
+
+The dashboard notification page is intentionally usable without Cloud Functions. It copies FCM payloads to your clipboard so you can paste them into Firebase Console and avoid Blaze billing.
+
+Deploy with:
+```bash
+firebase deploy --only firestore:rules,hosting
+```
 
 ## 🧪 Testing
 

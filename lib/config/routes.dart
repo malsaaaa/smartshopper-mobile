@@ -20,6 +20,7 @@ class RoutesConfig {
   static const String allPrices = '/all-prices';
   static const String accountSettings = '/account-settings';
   static const String notifications = '/notifications';
+  static const String favorites = '/favorites';
   static const String discountNotificationsDemo = '/discount-notifications-demo';
   static const String about = '/about';
   static const String productSearch = '/product-search';
@@ -50,7 +51,9 @@ class RoutesConfig {
 
       // Home/Main Routes
       case home:
-        return _buildRoute(const HomeScreen(), settings);
+        final args = settings.arguments as Map<String, dynamic>?;
+        final initialTab = args != null && args['initialTab'] is int ? args['initialTab'] as int : 0;
+        return _buildRoute(HomeScreen(initialTab: initialTab), settings);
 
       // Product Routes
       case allPrices:
@@ -67,6 +70,8 @@ class RoutesConfig {
       // Profile Routes
       case accountSettings:
         return _buildRoute(const AccountSettingsScreen(), settings);
+      case favorites:
+        return _buildRoute(const FavoritesScreen(), settings);
       case notifications:
         return _buildRoute(const NotificationsScreen(), settings);
       case discountNotificationsDemo:

@@ -42,9 +42,10 @@ class AppTheme {
   static const Color info = Color(0xFF4D7DFF); // Modern blue
 
   // ============== COLORS - NEUTRAL ==============
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color background = Color(0xFFF8FFFE); // Clean white with slight tint
-  static const Color surfaceVariant = Color(0xFFEEEEEE);
+  // Neutral backgrounds with a subtle green hue
+  static const Color surface = Color(0xFFF7FFFA);
+  static const Color background = Color(0xFFF2FFF7); // page background with gentle green hue
+  static const Color surfaceVariant = Color(0xFFEFF8F0);
 
   static const Color textPrimary = Color(0xFF1A2E1F);  // Dark navy-black
   static const Color textSecondary = Color(0xFF6B7280); // Modern grey
@@ -142,7 +143,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(borderRadiusInput),
           borderSide: const BorderSide(color: divider),

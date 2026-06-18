@@ -11,6 +11,58 @@ let products = [];
 let retailers = [];
 let prices = [];
 let users = [];
+let notificationHistory = [];
+
+const NOTIFICATION_HISTORY_KEY = 'smartshopper_notification_history';
+
+function loadNotificationHistory() {
+  try {
+    const saved = localStorage.getItem(NOTIFICATION_HISTORY_KEY);
+    if (saved) {
+      notificationHistory = JSON.parse(saved);
+    }
+  } catch (error) {
+    console.warn('Unable to load notification history:', error);
+  }
+  return notificationHistory;
+}
+
+function saveNotificationHistory() {
+  localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(notificationHistory.slice(0, 20)));
+}
+
+function pushNotificationHistory(entry) {
+  notificationHistory = [entry, ...notificationHistory].slice(0, 20);
+  saveNotificationHistory();
+  renderNotifications();
+}
+
+function renderNotificationHistory() {
+  const tbody = document.getElementById('notification-history-body');
+  if (!tbody) return;
+
+  if (!notificationHistory.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center;color:var(--text-3);padding:24px">No notification runs yet.</td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = notificationHistory.map(entry => `
+    <tr>
+      <td style="color:var(--text-2);font-size:.82rem">${new Date(entry.at).toLocaleString()}</td>
+      <td><strong>${entry.type}</strong></td>
+      <td>${entry.title}</td>
+      <td><span class="notif-history ${entry.status}">${entry.status}</span></td>
+      <td style="font-size:.78rem;color:var(--text-2)">${entry.channel}</td>
+    </tr>
+  `).join('');
+}
+
+function renderNotifications() {
+  renderNotificationHistory();
+}
 
 // ── Authentication ────────────────────────────────────────────────────────────
 
@@ -103,6 +155,8 @@ async function initDashboard() {
     products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     updateUI('products');
   });
+  loadNotificationHistory();
+
 
   db.collection('retailers').onSnapshot(snapshot => {
     retailers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -144,12 +198,13 @@ function showPage(page, el) {
   if (el) el.classList.add('active');
   
   document.getElementById('page-title').textContent =
-    { dashboard:'Dashboard', products:'Products', prices:'Prices',
+    { dashboard:'Dashboard', notifications:'Notifications', products:'Products', prices:'Prices',
       retailers:'Retailers', users:'Users', analytics:'Analytics',
       scraper:'Scraper', settings:'Settings' }[page] || page;
 
   // Render immediately with local data
   const refreshMap = {
+    notifications: renderNotifications,
     products:  renderProducts,
     prices:    renderPrices,
     retailers: renderRetailers,
@@ -666,6 +721,176 @@ function handleGlobalSearch() {
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function closeModalOutside(e, id) { if (e.target.id === id) closeModal(id); }
+
+function readNotificationForm() {
+  return {
+    type: document.getElementById('notification-type').value,
+    topic: document.getElementById('notification-topic').value.trim(),
+    title: document.getElementById('notification-title').value.trim(),
+    body: document.getElementById('notification-body').value.trim(),
+    route: document.getElementById('notification-route').value.trim(),
+    productId: document.getElementById('notification-product-id').value.trim(),
+    productName: document.getElementById('notification-product-name').value.trim(),
+    retailer: document.getElementById('notification-retailer').value.trim(),
+    oldPrice: document.getElementById('notification-old-price').value.trim(),
+    newPrice: document.getElementById('notification-new-price').value.trim(),
+    budgetId: document.getElementById('notification-budget-id').value.trim(),
+    spent: document.getElementById('notification-spent').value.trim(),
+    limit: document.getElementById('notification-limit').value.trim(),
+    listId: document.getElementById('notification-list-id').value.trim(),
+    listName: document.getElementById('notification-list-name').value.trim(),
+  };
+}
+
+function buildNotificationPayload(fields) {
+  const payload = {
+    topic: fields.topic,
+    notification: {
+      title: fields.title,
+      body: fields.body,
+    },
+    data: {
+      type: fields.type,
+      route: fields.route || '/notifications',
+      productId: fields.productId,
+      productName: fields.productName,
+      retailer: fields.retailer,
+      oldPrice: fields.oldPrice,
+      newPrice: fields.newPrice,
+      budgetId: fields.budgetId,
+      spent: fields.spent,
+      limit: fields.limit,
+      listId: fields.listId,
+      listName: fields.listName,
+    },
+  };
+
+  Object.keys(payload.data).forEach(key => {
+    if (!payload.data[key]) delete payload.data[key];
+  });
+
+  return payload;
+}
+
+async function copyPayloadToClipboard(payload) {
+  const pretty = JSON.stringify(payload, null, 2);
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(pretty);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = pretty;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+}
+
+async function submitNotification() {
+  const fields = readNotificationForm();
+
+  if (!fields.title || !fields.body) {
+    showToast('❌ Title and body are required');
+    return;
+  }
+
+  if (!fields.topic) {
+    showToast('❌ Select a topic');
+    return;
+  }
+
+  const payload = buildNotificationPayload(fields);
+
+  try {
+    await copyPayloadToClipboard(payload);
+    pushNotificationHistory({
+      at: new Date().toISOString(),
+      type: fields.type,
+      title: fields.title,
+      status: 'copied',
+      channel: 'clipboard',
+      target: fields.topic,
+      source: 'manual',
+    });
+
+    showToast('✅ Notification payload copied');
+  } catch (error) {
+    pushNotificationHistory({
+      at: new Date().toISOString(),
+      type: fields.type,
+      title: fields.title,
+      status: 'failed',
+      channel: 'clipboard',
+      target: fields.topic,
+      source: 'manual',
+    });
+    showToast('❌ Failed to copy payload: ' + error.message);
+  }
+}
+
+function setNotificationTemplate(template) {
+  const presets = {
+    price_drop: {
+      type: 'price_drop',
+      topic: 'price_alerts',
+      title: '🎉 Price Drop! Milo Activ-Go',
+      body: 'Mydin: RM11.99 (was RM12.50)',
+      route: '/product-details',
+      productId: 'milo-001',
+      productName: 'Milo Activ-Go',
+      retailer: 'Mydin',
+      oldPrice: '12.50',
+      newPrice: '11.99',
+    },
+    budget_alert: {
+      type: 'budget_alert',
+      topic: 'budget_alerts',
+      title: '⚠️ Budget Warning',
+      body: 'You have used 80% of your RM500.00 budget.',
+      route: '/budget',
+      budgetId: 'budget-001',
+      spent: '400.00',
+      limit: '500.00',
+    },
+    shopping_reminder: {
+      type: 'shopping_reminder',
+      topic: 'shopping_reminders',
+      title: '🛒 Shopping Reminder',
+      body: 'Don\'t forget to check your weekend shopping list.',
+      route: '/shopping-lists',
+      listId: 'list-001',
+      listName: 'Weekend Groceries',
+    },
+    weekly_digest: {
+      type: 'weekly_digest',
+      topic: 'weekly_digest',
+      title: '📬 Weekly Digest',
+      body: '3 items dropped this week — estimated savings RM12.40. Top: Milo Activ-Go (RM12.50 → RM11.99).',
+      route: '/notifications',
+    },
+  };
+
+  const preset = presets[template];
+  if (!preset) return;
+
+  Object.entries(preset).forEach(([key, value]) => {
+    const field = document.getElementById(`notification-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`);
+    if (field) field.value = value;
+  });
+}
+
+async function sendQuickNotification(template) {
+  setNotificationTemplate(template);
+  await submitNotification();
+}
+
+window.sendQuickNotification = sendQuickNotification;
+window.submitNotification = submitNotification;
+window.renderNotifications = renderNotifications;
 
 function toggleDarkMode() { document.body.classList.toggle('dark'); }
 

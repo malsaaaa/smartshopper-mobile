@@ -123,10 +123,19 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       appBar: AppBar(
         title: const Text('Product Details'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.favorite_border),
-            onPressed: () {
-              // TODO: Add to favorites/wishlist
+          Consumer(
+            builder: (context, ref, _) {
+              final favs = ref.watch(favoritesProvider);
+              final isFav = favs.contains(product?.id ?? -1);
+              return IconButton(
+                icon: Icon(isFav ? Icons.favorite : Icons.favorite_border),
+                color: isFav ? AppTheme.error : null,
+                onPressed: () {
+                  if (product != null) {
+                    ref.read(favoritesProvider.notifier).toggleFavorite(product.id);
+                  }
+                },
+              );
             },
           ),
         ],

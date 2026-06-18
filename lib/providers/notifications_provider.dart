@@ -204,5 +204,41 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
   void addNotification(Notification notification) {
     state = [notification, ...state];
   }
+
+  /// Add a weekly digest notification summarizing recent activity.
+  Future<void> addWeeklyDigestNotification({
+    required int userId,
+  }) async {
+    final id = state.isNotEmpty ? state.first.id + 1 : 1;
+    final unreadNotifications = state.where((n) => !n.isRead).length;
+    final priceAlerts = state.where((n) => n.type == 'price_drop' || n.type == 'price_target').length;
+    final promotions = state.where((n) => n.type == 'new_discount' || n.type == 'deal').length;
+    final budgetAlerts = state.where((n) => n.type == 'budget_alert').length;
+    final shoppingReminders = state.where((n) => n.type == 'system').length;
+
+    // Build a richer digest by aggregating price changes from Firestore.
+    try {
+      final digest = await NotificationService.buildWeeklyDigestFromFirestore(
+        id: id,
+        userId: userId,
+      );
+
+      // If needed, we can enrich counts from local state as well by copying message
+      state = [digest, ...state];
+    } catch (e) {
+      // Fallback to local summary if Firestore aggregation fails
+      final digest = NotificationService.createWeeklyDigestNotification(
+        id: id,
+        userId: userId,
+        totalNotifications: state.length,
+        unreadNotifications: unreadNotifications,
+        priceAlerts: priceAlerts,
+        promotions: promotions,
+        budgetAlerts: budgetAlerts,
+        shoppingReminders: shoppingReminders,
+      );
+      state = [digest, ...state];
+    }
+  }
 }
 

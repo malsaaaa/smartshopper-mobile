@@ -11,14 +11,25 @@ import 'package:smartshopper_mobile/screens/home/widgets/shopping_tab.dart';
 /// Main home screen with tabbed navigation.
 /// Each tab is a self-contained widget in screens/home/widgets/.
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTab;
+  const HomeScreen({super.key, this.initialTab = 0});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _selectedTab = 0;
+  late int _selectedTab;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTab = widget.initialTab;
+    // Pre-cache the welcome header background so it doesn't flash the green gradient
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(const AssetImage('assets/images/backgrounds/main-bg.png'), context);
+    });
+  }
 
   static const _tabs = [
     HomeTab(),

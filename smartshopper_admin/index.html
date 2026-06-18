@@ -77,6 +77,9 @@
       <a href="#" class="nav-item" data-page="analytics" onclick="showPage('analytics',this)">
         <span class="nav-icon">📈</span><span>Analytics</span>
       </a>
+      <a href="#" class="nav-item" data-page="notifications" onclick="showPage('notifications',this)">
+        <span class="nav-icon">🔔</span><span>Notifications</span>
+      </a>
       <a href="#" class="nav-item" data-page="scraper" onclick="showPage('scraper',this)">
         <span class="nav-icon">🕷️</span><span>Scraper</span>
       </a>
@@ -305,6 +308,158 @@
         <div class="card">
           <div class="card-header"><h3>Products by Category</h3></div>
           <div class="donut-chart" id="chart-types"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── NOTIFICATIONS PAGE ─────────────────────────────────────────── -->
+    <section class="page" id="page-notifications">
+      <div class="page-header">
+        <div>
+          <h1>Notifications</h1>
+          <p>Send price alerts, budget alerts, reminders, and digest messages from the admin dashboard.</p>
+        </div>
+      </div>
+
+      <div class="notifications-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>Zero-Backend Mode</h3>
+            <span class="chip">Free</span>
+          </div>
+          <div class="settings-form">
+            <p style="font-size:.9rem;line-height:1.6;color:var(--text-2)">
+              This mode does not use Cloud Functions. The dashboard composes a valid FCM payload and copies it to your clipboard so you can paste it into Firebase Console or a backend later.
+            </p>
+            <p style="font-size:.78rem;color:var(--text-3);line-height:1.5">
+              This keeps deployment free: only Firestore rules and Hosting are needed.
+            </p>
+            <p style="font-size:.78rem;color:var(--text-2);line-height:1.5">
+              Use the quick-send buttons below, then paste the copied JSON into Firebase Console's FCM message composer.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Quick Demo Sends</h3>
+            <span class="chip">One click</span>
+          </div>
+          <div class="notification-actions">
+            <button class="btn-primary" onclick="sendQuickNotification('price_drop')">Price Drop Alert</button>
+            <button class="btn-primary" onclick="sendQuickNotification('budget_alert')">Budget Alert</button>
+            <button class="btn-primary" onclick="sendQuickNotification('shopping_reminder')">Shopping Reminder</button>
+            <button class="btn-primary" onclick="sendQuickNotification('weekly_digest')">Weekly Digest</button>
+          </div>
+        </div>
+
+        <div class="card notification-composer">
+          <div class="card-header">
+            <h3>Custom Notification</h3>
+            <span class="chip">Compose</span>
+          </div>
+          <div class="settings-form">
+            <div class="two-col">
+              <div class="form-group">
+                <label>Type</label>
+                <select id="notification-type">
+                  <option value="price_drop">price_drop</option>
+                  <option value="budget_alert">budget_alert</option>
+                  <option value="shopping_reminder">shopping_reminder</option>
+                  <option value="weekly_digest">weekly_digest</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Topic</label>
+                <select id="notification-topic">
+                  <option value="price_alerts">price_alerts</option>
+                  <option value="budget_alerts">budget_alerts</option>
+                  <option value="shopping_reminders">shopping_reminders</option>
+                  <option value="weekly_digest">weekly_digest</option>
+                  <option value="promotions">promotions</option>
+                  <option value="discounts">discounts</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" id="notification-title" placeholder="Price Drop! Milo Activ-Go" />
+            </div>
+            <div class="form-group">
+              <label>Body</label>
+              <textarea id="notification-body" rows="3" placeholder="Mydin: RM11.99 (was RM12.50)"></textarea>
+            </div>
+            <div class="two-col">
+              <div class="form-group">
+                <label>Route</label>
+                <input type="text" id="notification-route" placeholder="/product-details" />
+              </div>
+              <div class="form-group">
+                <label>Product ID</label>
+                <input type="text" id="notification-product-id" placeholder="milo-001" />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="form-group">
+                <label>Product Name</label>
+                <input type="text" id="notification-product-name" placeholder="Milo Activ-Go" />
+              </div>
+              <div class="form-group">
+                <label>Retailer</label>
+                <input type="text" id="notification-retailer" placeholder="Mydin" />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="form-group">
+                <label>Old Price</label>
+                <input type="text" id="notification-old-price" placeholder="12.50" />
+              </div>
+              <div class="form-group">
+                <label>New Price</label>
+                <input type="text" id="notification-new-price" placeholder="11.99" />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="form-group">
+                <label>Budget ID</label>
+                <input type="text" id="notification-budget-id" placeholder="budget-001" />
+              </div>
+              <div class="form-group">
+                <label>Spent</label>
+                <input type="text" id="notification-spent" placeholder="400.00" />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="form-group">
+                <label>Limit</label>
+                <input type="text" id="notification-limit" placeholder="500.00" />
+              </div>
+              <div class="form-group">
+                <label>Shopping List ID</label>
+                <input type="text" id="notification-list-id" placeholder="list-001" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Shopping List Name</label>
+              <input type="text" id="notification-list-name" placeholder="Weekend Groceries" />
+            </div>
+            <button class="btn-primary" onclick="submitNotification()">Send Notification</button>
+          </div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <h3>Recent Notification Runs</h3>
+            <span class="chip">Local history</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr><th>Time</th><th>Type</th><th>Title</th><th>Status</th><th>Channel</th></tr>
+              </thead>
+              <tbody id="notification-history-body"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>

@@ -133,10 +133,18 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   /// Build search results view
   Widget _buildSearchResults() {
     if (!_hasSearched) {
-      return EmptyState(
-        icon: Icons.search,
-        title: 'Search Products',
-        message: 'Enter a product name to compare prices across retailers',
+      // Show recommended / popular products when user hasn't searched yet
+      final recommendations = MockData.products.take(6).toList();
+      return ListView.builder(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        itemCount: recommendations.length,
+        itemBuilder: (context, index) {
+          final product = recommendations[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _buildProductCard(product, context),
+          );
+        },
       );
     }
 

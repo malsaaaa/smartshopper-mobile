@@ -3,6 +3,7 @@ import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
 import 'package:smartshopper_mobile/providers/firestore_service_provider.dart';
+import 'package:smartshopper_mobile/providers/notification_preferences_provider.dart';
 import 'package:smartshopper_mobile/providers/notifications_provider.dart';
 import 'package:smartshopper_mobile/services/location_service.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';
@@ -100,7 +101,10 @@ class CartNotifier extends StateNotifier<AsyncValue<ShoppingList?>> {
       createdAt: DateTime.now(),
     );
 
-    _ref.read(notificationsProvider.notifier).addNotification(notification);
+    final preferences = _ref.read(notificationPreferencesProvider);
+    if (preferences.shoppingReminders) {
+      _ref.read(notificationsProvider.notifier).addNotification(notification);
+    }
 
     // Optimistic splice into state
     state.whenData((cart) {

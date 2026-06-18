@@ -1209,14 +1209,26 @@ class SmartImage extends StatelessWidget {
 
 /// Helper function to resolve retailer logo with fallback
 String getRetailerLogo(String name, String? currentUrl) {
-  if (currentUrl != null && currentUrl.isNotEmpty) return currentUrl;
-  
   final normalized = name.toLowerCase();
-  if (normalized.contains('giant')) return 'assets/images/retailers/giant.png';
-  if (normalized.contains('mydin')) return 'assets/images/retailers/mydin.png';
-  if (normalized.contains('lotus')) return 'assets/images/retailers/lotus.png';
-  if (normalized.contains('aeon')) return 'assets/images/retailers/aeon.png';
-  if (normalized.contains('econsave')) return 'assets/images/retailers/econsave.png';
-  
-  return '';
+  final fallback = normalized.contains('giant')
+      ? 'assets/images/retailers/giant.png'
+      : normalized.contains('mydin')
+          ? 'assets/images/retailers/mydin.png'
+          : normalized.contains('lotus')
+              ? 'assets/images/retailers/lotuss.png'
+              : normalized.contains('aeon')
+                  ? 'assets/images/retailers/aeon.png'
+                  : normalized.contains('econsave')
+                      ? 'assets/images/retailers/econsave.png'
+                      : '';
+
+  if (fallback.isNotEmpty) {
+    if (currentUrl == null || currentUrl.isEmpty) return fallback;
+    if (currentUrl.startsWith('assets/') || currentUrl.startsWith('package:')) {
+      return currentUrl;
+    }
+    return fallback;
+  }
+
+  return currentUrl ?? '';
 }

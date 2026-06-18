@@ -11,4 +11,6 @@ export 'firestore_service_provider.dart';
 export 'firestore_shopping_list_provider.dart';
 export 'firestore_user_provider.dart';
 export 'firebase_storage_provider.dart';
+export 'notification_preferences_provider.dart';
 export 'search_providers.dart';
+export 'favorites_provider.dart';

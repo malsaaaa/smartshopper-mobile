@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -67,6 +68,13 @@ class ProfileTab extends ConsumerWidget {
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () =>
                     Navigator.pushNamed(context, '/account-settings'),
+              ),
+              const Divider(height: 0),
+              ListItemTile(
+                leading: const Icon(Icons.favorite_border, color: Colors.pink),
+                title: 'Favorites',
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => Navigator.pushNamed(context, '/favorites'),
               ),
               const Divider(height: 0),
               ListItemTile(
@@ -139,31 +147,6 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
   bool _isUploading = false;
 
   Future<void> _pickImage() async {
-    // Request permissions first
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.camera,
-      Permission.photos,
-      Permission.storage,
-    ].request();
-
-    if (statuses[Permission.camera]!.isPermanentlyDenied || 
-        statuses[Permission.photos]!.isPermanentlyDenied) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Permissions Required'),
-            content: const Text('Please enable camera and photo permissions in settings to change your profile picture.'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-              TextButton(onPressed: () => openAppSettings(), child: const Text('Open Settings')),
-            ],
-          ),
-        );
-      }
-      return;
-    }
-
     final ImagePicker picker = ImagePicker();
     
     // Show dialog to choose between camera and gallery
@@ -189,11 +172,32 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
 
     if (source == null) return;
 
+    // Request only the permission required for the chosen source.
+    if (source == ImageSource.camera) {
+      final cameraStatus = await Permission.camera.request();
+      if (cameraStatus.isPermanentlyDenied || cameraStatus.isDenied) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Camera Permission Required'),
+              content: const Text('Please enable camera permission in settings to take a profile photo.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                TextButton(onPressed: () => openAppSettings(), child: const Text('Open Settings')),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     final XFile? image = await picker.pickImage(
       source: source,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 75,
+      maxWidth: 256,
+      maxHeight: 256,
+      imageQuality: 60,
     );
 
     if (image == null) return;
@@ -201,21 +205,24 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
     setState(() => _isUploading = true);
 
     try {
-      final storageService = ref.read(firebaseStorageServiceProvider);
+      final imageBytes = await image.readAsBytes();
       final userService = ref.read(firestoreUserServiceProvider);
       final userId = ref.read(firestoreAuthServiceProvider).getCurrentUserId();
 
       if (userId == null) return;
 
-      // Upload to Storage
-      final downloadUrl = await storageService.uploadProfilePicture(
-        userId: userId,
-        imageFile: File(image.path),
-      );
+      final contentType = _contentTypeFromFileName(image.name);
+      final pictureUrl = kIsWeb
+          ? 'data:$contentType;base64,${base64Encode(imageBytes)}'
+          : await ref.read(firebaseStorageServiceProvider).uploadProfilePicture(
+              userId: userId,
+              imageBytes: imageBytes,
+              fileName: image.name,
+            );
 
-      if (downloadUrl != null) {
+      if (pictureUrl != null) {
         // Update Firestore
-        await userService.updateProfilePicture(userId, downloadUrl);
+        await userService.updateProfilePicture(userId, pictureUrl);
         
         // Refresh profile info
         ref.invalidate(firestoreUserNotifierProvider);
@@ -237,6 +244,14 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
         setState(() => _isUploading = false);
       }
     }
+  }
+
+  String _contentTypeFromFileName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
   }
 
   @override
@@ -263,39 +278,67 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
           clipBehavior: Clip.antiAlias,
           child: _isUploading
               ? const Center(child: CircularProgressIndicator())
-              : photoUrl != null && photoUrl.isNotEmpty
-                  ? Image.network(
-                      photoUrl,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(child: CircularProgressIndicator());
-                      },
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.person, size: 60, color: AppTheme.primary),
-                    )
-                  : const Icon(Icons.person, size: 60, color: AppTheme.primary),
+              : _buildAvatarImage(photoUrl),
         ),
         Positioned(
           bottom: 0,
           right: 0,
           child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: _isUploading ? null : _pickImage,
             child: Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.primary,
-              ),
-              child: const Icon(
-                Icons.camera_alt,
-                size: 20,
-                color: Colors.white,
-              ),
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.primary,
+            ),
+                child: const Icon(
+                  Icons.camera_alt,
+                  size: 20,
+                  color: Colors.white,
+                ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAvatarImage(String? photoUrl) {
+    if (photoUrl == null || photoUrl.isEmpty) {
+      return const Icon(Icons.person, size: 60, color: AppTheme.primary);
+    }
+
+    if (photoUrl.startsWith('data:image/')) {
+      try {
+        final base64Index = photoUrl.indexOf('base64,');
+        if (base64Index == -1) {
+          return const Icon(Icons.person, size: 60, color: AppTheme.primary);
+        }
+
+        final bytes = base64Decode(photoUrl.substring(base64Index + 7));
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              const Icon(Icons.person, size: 60, color: AppTheme.primary),
+        );
+      } catch (_) {
+        return const Icon(Icons.person, size: 60, color: AppTheme.primary);
+      }
+    }
+
+    return Image.network(
+      photoUrl,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return const Center(child: CircularProgressIndicator());
+      },
+      errorBuilder: (context, error, stackTrace) =>
+          const Icon(Icons.person, size: 60, color: AppTheme.primary),
     );
   }
 }

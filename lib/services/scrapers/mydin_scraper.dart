@@ -15,7 +15,7 @@ class MyDinScraper extends BaseScraper {
     return Retailer(
       id: retailerId,
       name: retailerName,
-      logoUrl: '$baseUrl/assets/images/logo.png',
+      logoUrl: 'assets/images/retailers/mydin.png',
       website: baseUrl,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

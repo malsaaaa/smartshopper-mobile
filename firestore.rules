@@ -1,35 +1,46 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Allow authenticated users to read/write their own user data and subcollections
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-      
-      // Budgets subcollection
-      match /budgets/{budgetId} {
-        allow read, write: if request.auth.uid == userId;
-        
-        // Budget history subcollection
-        match /history/{historyId} {
-          allow read, write: if request.auth.uid == userId;
-        }
-      }
-      
-      // Shopping lists subcollection
-      match /shoppingLists/{listId} {
-        allow read, write: if request.auth.uid == userId;
-        
-        // Items subcollection
-        match /items/{itemId} {
-          allow read, write: if request.auth.uid == userId;
-        }
-      }
+    // Helper function to check if the user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // 1. Products, Retailers, and Prices
+    // Anyone can read, but only Admins can write/edit
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
     
-    // Deny all other access
-    match /{document=**} {
-      allow read, write: if false;
+    match /retailers/{retailerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /prices/{priceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 2. User Data
+    match /users/{userId} {
+      // Users can read/write their own profile
+      // Admins can read/write ALL profiles (required for the Dashboard)
+      allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+      
+      // Allow the Admin Dashboard to list ALL users
+      allow list: if isAdmin();
+
+      // Subcollections (Shopping Lists, Budgets, etc.)
+      match /{allSubcollections=**} {
+         allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+      }
     }
   }
 }
+
+

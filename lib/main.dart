@@ -4,8 +4,11 @@ import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/config/firebase_config.dart';
 import 'package:smartshopper_mobile/config/routes.dart';
 import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
+import 'package:smartshopper_mobile/providers/notification_preferences_provider.dart';
 import 'package:smartshopper_mobile/providers/notifications_provider.dart';
 import 'package:smartshopper_mobile/providers/theme_provider.dart';
+import 'package:smartshopper_mobile/services/fcm_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartshopper_mobile/screens/home/home_screen.dart';
 import 'package:smartshopper_mobile/screens/auth/firebase_auth_screen.dart';
 
@@ -21,16 +24,52 @@ void main() async {
   
   // Create a container to access providers before the app starts
   _container = ProviderContainer();
+
+  await _container.read(notificationPreferencesProvider.notifier).loadFromStorage();
+  final notificationPreferences = _container.read(notificationPreferencesProvider);
   
   // Initialize FCM with notification handling
   await initializeFCM(
     onNotificationTap: _handleNotificationTap,
+    preferences: notificationPreferences,
     onNotificationReceived: (notification) {
+      final preferences = _container.read(notificationPreferencesProvider);
+      if (!preferences.allowsNotificationType(notification.type)) {
+        return;
+      }
+
       _container.read(notificationsProvider.notifier).addNotification(notification);
     },
   );
+
+  await _maybeGenerateWeeklyDigest();
   
   runApp(const ProviderScope(child: MyApp()));
+}
+
+Future<void> _maybeGenerateWeeklyDigest() async {
+  final preferences = _container.read(notificationPreferencesProvider);
+  if (!preferences.weeklyDigest) return;
+
+  final prefs = await SharedPreferences.getInstance();
+  const lastDigestKey = 'weekly_digest_last_sent_at';
+  final lastDigestIso = prefs.getString(lastDigestKey);
+  final now = DateTime.now();
+
+  if (lastDigestIso != null) {
+    final lastDigest = DateTime.tryParse(lastDigestIso);
+    if (lastDigest != null && now.difference(lastDigest).inDays < 7) {
+      return;
+    }
+  }
+
+  final userIdString = _container.read(currentUserIdProvider) ?? '';
+
+  _container.read(notificationsProvider.notifier).addWeeklyDigestNotification(
+        userId: int.tryParse(userIdString) ?? 0,
+      );
+
+  await prefs.setString(lastDigestKey, now.toIso8601String());
 }
 
 /// Handle notification tap navigation
@@ -51,6 +90,10 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(notificationPreferencesProvider, (previous, next) {
+      FCMService().updatePreferences(next);
+    });
+
     final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
       title: 'SmartShopper',

@@ -15,7 +15,7 @@ class GiantScraper extends BaseScraper {
     return Retailer(
       id: retailerId,
       name: retailerName,
-      logoUrl: '$baseUrl/assets/images/logo.png',
+      logoUrl: 'assets/images/retailers/giant.png',
       website: baseUrl,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

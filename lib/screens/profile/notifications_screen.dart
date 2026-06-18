@@ -1,27 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
+import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 
 /// Notifications settings screen
 /// Allows users to manage their notification preferences
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  bool _pushNotifications = true;
-  bool _emailNotifications = true;
-  bool _priceAlerts = true;
-  bool _budgetAlerts = true;
-  bool _shoppingReminders = true;
-  bool _promotions = false;
-  bool _weeklyDigest = true;
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final preferences = ref.watch(notificationPreferencesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
@@ -49,33 +46,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   'Receive notifications on your phone',
                   style: AppTypography.bodySmall,
                 ),
-                value: _pushNotifications,
+                value: preferences.pushNotifications,
                 onChanged: (value) {
-                  setState(() => _pushNotifications = value);
+                  ref.read(notificationPreferencesProvider.notifier).setPushNotifications(value);
                 },
                 activeColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Email Notifications
-            BaseCard(
-              child: SwitchListTile(
-                title: Text(
-                  'Email Notifications',
-                  style: AppTypography.labelLarge,
-                ),
-                subtitle: Text(
-                  'Receive notifications via email',
-                  style: AppTypography.bodySmall,
-                ),
-                value: _emailNotifications,
-                onChanged: (value) {
-                  setState(() => _emailNotifications = value);
-                },
-                activeColor: AppTheme.primary,
-              ),
-            ),
             const SizedBox(height: AppSpacing.xxl),
 
             // Alert Preferences Section
@@ -96,9 +75,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   'Get notified when prices drop',
                   style: AppTypography.bodySmall,
                 ),
-                value: _priceAlerts,
+                value: preferences.priceAlerts,
                 onChanged: (value) {
-                  setState(() => _priceAlerts = value);
+                  ref.read(notificationPreferencesProvider.notifier).setPriceAlerts(value);
                 },
                 activeColor: AppTheme.primary,
               ),
@@ -116,9 +95,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   'Notify when budget limit reached',
                   style: AppTypography.bodySmall,
                 ),
-                value: _budgetAlerts,
+                value: preferences.budgetAlerts,
                 onChanged: (value) {
-                  setState(() => _budgetAlerts = value);
+                  ref.read(notificationPreferencesProvider.notifier).setBudgetAlerts(value);
                 },
                 activeColor: AppTheme.primary,
               ),
@@ -136,9 +115,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   'Remind me about pending shopping lists',
                   style: AppTypography.bodySmall,
                 ),
-                value: _shoppingReminders,
+                value: preferences.shoppingReminders,
                 onChanged: (value) {
-                  setState(() => _shoppingReminders = value);
+                  ref.read(notificationPreferencesProvider.notifier).setShoppingReminders(value);
                 },
                 activeColor: AppTheme.primary,
               ),
@@ -163,9 +142,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   'Receive special deals and promotions',
                   style: AppTypography.bodySmall,
                 ),
-                value: _promotions,
+                value: preferences.promotions,
                 onChanged: (value) {
-                  setState(() => _promotions = value);
+                  ref.read(notificationPreferencesProvider.notifier).setPromotions(value);
                 },
                 activeColor: AppTheme.primary,
               ),
@@ -183,9 +162,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   'Weekly summary of prices and savings',
                   style: AppTypography.bodySmall,
                 ),
-                value: _weeklyDigest,
+                value: preferences.weeklyDigest,
                 onChanged: (value) {
-                  setState(() => _weeklyDigest = value);
+                  ref.read(notificationPreferencesProvider.notifier).setWeeklyDigest(value);
                 },
                 activeColor: AppTheme.primary,
               ),

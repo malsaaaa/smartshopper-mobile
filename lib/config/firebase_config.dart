@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smartshopper_mobile/data/models/notification.dart' as notif;
+import 'package:smartshopper_mobile/providers/notification_preferences_provider.dart';
 import 'package:smartshopper_mobile/services/fcm_service.dart';
 import 'firebase_options.dart';
 
@@ -16,6 +17,7 @@ Future<void> initializeFirebase() async {
 Future<void> initializeFCM({
   required Function(String? route, Map<String, dynamic>? data)? onNotificationTap,
   required Function(notif.Notification)? onNotificationReceived,
+  required NotificationPreferences preferences,
 }) async {
   // Skip FCM initialization on web platforms
   if (kIsWeb) {
@@ -27,5 +29,6 @@ Future<void> initializeFCM({
   await fcmService.initialize(
     onTap: onNotificationTap,
     onNotificationReceived: onNotificationReceived,
+    preferences: preferences,
   );
 }
