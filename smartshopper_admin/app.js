@@ -13,6 +13,23 @@ let prices = [];
 let users = [];
 let notificationHistory = [];
 
+function normalizeRetailerRecord(retailer) {
+  const name = (retailer?.name || '').trim();
+  const normalizedName = name.toLowerCase();
+
+  if (normalizedName === 'giant') {
+    return {
+      ...retailer,
+      name: 'myAEON2go',
+      website: 'https://www.lotuss.com.my/en',
+      icon: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png',
+      logoUrl: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png',
+    };
+  }
+
+  return retailer;
+}
+
 const NOTIFICATION_HISTORY_KEY = 'smartshopper_notification_history';
 
 function loadNotificationHistory() {
@@ -159,7 +176,7 @@ async function initDashboard() {
 
 
   db.collection('retailers').onSnapshot(snapshot => {
-    retailers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    retailers = snapshot.docs.map(doc => normalizeRetailerRecord({ id: doc.id, ...doc.data() }));
     updateUI('retailers');
   });
 
@@ -919,15 +936,15 @@ async function seedDatabase() {
     },
     { 
       id: '2', 
-      name: 'Giant',   
-      website: 'https://giant.com.my',  
-      icon: 'https://www.giant.com.my/wp-content/uploads/2021/04/giant-logo.png',
-      logoUrl: 'https://www.giant.com.my/wp-content/uploads/2021/04/giant-logo.png'
+      name: 'myAEON2go',   
+      website: 'https://myaeon2go.com',  
+      icon: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png',
+      logoUrl: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png'
     },
     { 
       id: '5', 
       name: "Lotus's", 
-      website: 'https://lotuss.com.my', 
+      website: 'https://www.lotuss.com.my/en', 
       icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Lotus%27s_Logo.svg/1200px-Lotus%27s_Logo.svg.png',
       logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Lotus%27s_Logo.svg/1200px-Lotus%27s_Logo.svg.png'
     },
@@ -1072,9 +1089,9 @@ function getScraperJobs() {
       itemsScraped: 47,
     },
     {
-      id: 'job_giant',
-      retailerName: 'Giant',
-      targetUrl: 'https://giant.com.my/groceries',
+      id: 'job_myaeon2go',
+      retailerName: 'myAEON2go',
+      targetUrl: 'https://myaeon2go.com',
       frequency: 'Every 12 Hours',
       scheduledTime: '08:00',
       lastRun: new Date(Date.now() - 11 * 3600 * 1000).toISOString(),
@@ -1084,7 +1101,7 @@ function getScraperJobs() {
     {
       id: 'job_lotuss',
       retailerName: "Lotus's",
-      targetUrl: 'https://www.lotuss.com.my/en/category/groceries',
+      targetUrl: 'https://www.lotuss.com.my/en',
       frequency: 'Every 6 Hours',
       scheduledTime: '06:00',
       lastRun: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
@@ -1356,8 +1373,8 @@ function initScraperLog() {
     { ts: ts(3600000), level: 'ERROR',   retailer: "Lotus's", message: 'Max retries exceeded. Scraping job FAILED.' },
     { ts: ts(3601000), level: 'WARN',    retailer: "Lotus's", message: 'Rate-limit detected (HTTP 429). Backing off 30s…' },
     { ts: ts(3602000), level: 'INFO',    retailer: "Lotus's", message: 'Sending HTTP GET request to retailer website…' },
-    { ts: ts(7200000), level: 'SUCCESS', retailer: 'Giant',   message: 'Job completed. 63 prices updated in database.' },
-    { ts: ts(7202000), level: 'INFO',    retailer: 'Giant',   message: 'Scraping job started — target: https://giant.com.my/groceries' },
+    { ts: ts(7200000), level: 'SUCCESS', retailer: 'myAEON2go',   message: 'Job completed. 63 prices updated in database.' },
+    { ts: ts(7202000), level: 'INFO',    retailer: 'myAEON2go',   message: 'Scraping job started — target: https://myaeon2go.com' },
   ];
 }
 

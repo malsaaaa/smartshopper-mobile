@@ -1210,8 +1210,8 @@ class SmartImage extends StatelessWidget {
 /// Helper function to resolve retailer logo with fallback
 String getRetailerLogo(String name, String? currentUrl) {
   final normalized = name.toLowerCase();
-  final fallback = normalized.contains('giant')
-      ? 'assets/images/retailers/giant.png'
+  final fallback = normalized.contains('myaeon2go')
+    ? 'assets/images/retailers/aeon.png'
       : normalized.contains('mydin')
           ? 'assets/images/retailers/mydin.png'
           : normalized.contains('lotus')

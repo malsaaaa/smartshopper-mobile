@@ -1,4 +1,5 @@
-import 'package:html/html.dart' as html;
+import 'package:html/parser.dart' as html;
+import 'package:html/dom.dart' as dom;
 import 'package:http/http.dart' as http;
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'base_scraper.dart';
@@ -6,7 +7,7 @@ import 'base_scraper.dart';
 /// Lotus retailer scraper
 /// Scrapes product information from Lotus website
 class LotusScraper extends BaseScraper {
-  static const String baseUrl = 'https://www.lotusmurah.com';
+  static const String baseUrl = 'https://www.lotuss.com.my/en';
   static const String retailerName = 'Lotus';
   static const int retailerId = 3;
 
@@ -147,11 +148,11 @@ class LotusScraper extends BaseScraper {
   }
 
   /// Parse individual product element
-  Product? _parseProduct(html.Element element, int productId) {
+  Product? _parseProduct(dom.Element element, int productId) {
     try {
-      final name = element.querySelector('.product-name, .title, h2, .name')?.text?.trim() ?? '';
+      final name = element.querySelector('.product-name, .title, h2, .name')?.text.trim() ?? '';
       final imageUrl = element.querySelector('img')?.attributes['src'] ?? '';
-      final description = element.querySelector('.description, .details')?.text?.trim() ?? '';
+      final description = element.querySelector('.description, .details')?.text.trim() ?? '';
 
       if (name.isEmpty) return null;
 
@@ -172,7 +173,7 @@ class LotusScraper extends BaseScraper {
   }
 
   /// Parse price from product element
-  Price? _parsePrice(html.Element element, int productId) {
+  Price? _parsePrice(dom.Element element, int productId) {
     try {
       final priceText = element.querySelector('.price, [data-price], .product-price')?.text ?? '0';
       final price = _extractPrice(priceText);

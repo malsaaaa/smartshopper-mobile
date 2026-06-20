@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/services/scrapers/base_scraper.dart';
 import 'package:smartshopper_mobile/services/scrapers/mydin_scraper.dart';
-import 'package:smartshopper_mobile/services/scrapers/giant_scraper.dart';
+import 'package:smartshopper_mobile/services/scrapers/myaeon2go_scraper.dart';
 import 'package:smartshopper_mobile/services/scrapers/lotus_scraper.dart';
 
 /// Web scraper service that manages all retailer scrapers
@@ -13,7 +13,7 @@ class WebScraperService {
   // Scrapers for each retailer
   late final Map<String, BaseScraper> _scrapers = {
     'mydin': MyDinScraper(),
-    'giant': GiantScraper(),
+    'myaeon2go': MyAeon2GoScraper(),
     'lotus': LotusScraper(),
   };
 

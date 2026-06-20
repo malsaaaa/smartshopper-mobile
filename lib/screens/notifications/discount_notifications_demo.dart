@@ -28,7 +28,7 @@ import 'package:smartshopper_mobile/widgets/discount_notification_widget.dart';
 ///      productName: 'Coca Cola 2L',
 ///      oldPrice: 8.90,
 ///      newPrice: 6.99,
-///      retailer: 'Giant',
+///      retailer: 'myAEON2go',
 ///      expiresAt: DateTime.now().add(Duration(hours: 24)),
 ///    );
 ///
@@ -193,7 +193,7 @@ class DiscountNotificationsDemoScreen extends ConsumerWidget {
                         productName: 'Coca Cola 2L',
                         oldPrice: 8.90,
                         newPrice: 6.99,
-                        retailer: 'Giant',
+                        retailer: 'myAEON2go',
                         expiresAt: DateTime.now()
                             .add(const Duration(hours: 24)),
                       );

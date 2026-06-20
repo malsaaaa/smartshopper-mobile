@@ -1,13 +1,13 @@
 # 🎉 Web Scraping Setup Complete!
 
-Your SmartShopper app now has a complete web scraping system for **MyDin**, **Giant**, and **Lotus** retailers!
+Your SmartShopper app now has a complete web scraping system for **MyDin**, **myAEON2go**, and **Lotus** retailers!
 
 ## ✅ What's Been Implemented
 
 ### 1. **Core Scraping Services** ✨
 - ✅ `WebScraperService` - Main orchestrator
 - ✅ `MyDinScraper` - MyDin retailer scraper (ID: 1)
-- ✅ `GiantScraper` - Giant retailer scraper (ID: 2)  
+- ✅ `MyAeon2GoScraper` - myAEON2go retailer scraper (ID: 2)  
 - ✅ `LotusScraper` - Lotus retailer scraper (ID: 3)
 - ✅ `BaseScraper` - Abstract base class for extensibility
 
@@ -46,7 +46,7 @@ lib/
 │   ├── scrapers/                         📁 Scraper implementations
 │   │   ├── base_scraper.dart
 │   │   ├── mydin_scraper.dart
-│   │   ├── giant_scraper.dart
+│   │   ├── myaeon2go_scraper.dart
 │   │   ├── lotus_scraper.dart
 │   │   └── index.dart
 │   └── index.dart                        (updated exports)
@@ -78,7 +78,7 @@ flutter pub get
 import 'package:smartshopper_mobile/providers/web_scraper_provider.dart';
 
 final results = await ref.read(scrapeAllRetailersProvider(true).future);
-// Results: {'mydin': 145, 'giant': 203, 'lotus': 178}
+// Results: {'mydin': 145, 'myaeon2go': 203, 'lotus': 178}
 ```
 
 ### 3. Add Control Screen to Routes
@@ -102,7 +102,7 @@ Navigate to the control screen and click "Scrape All Retailers" to begin data co
       ┌────┴────┬──────────┬──────────┐
       │          │          │          │
       ▼          ▼          ▼          ▼
-   MyDin      Giant      Lotus    Firestore
+   MyDin      myAEON2go      Lotus    Firestore
  Scraper     Scraper    Scraper  ✓ retailers
       │          │          │     ✓ products
       └────┬─────┴──────┬───┘     ✓ prices
@@ -119,7 +119,7 @@ After scraping, you'll have:
 Firestore:
 ├── retailers/
 │   ├── 1/ (MyDin)
-│   ├── 2/ (Giant)
+│   ├── 2/ (myAEON2go)
 │   └── 3/ (Lotus)
 ├── products/
 │   ├── 1/ {name, category, image, ...}
@@ -127,7 +127,7 @@ Firestore:
 │   └── ... (hundreds of products)
 └── prices/
     ├── 1_1/ (MyDin price for product 1)
-    ├── 2_1/ (Giant price for product 1)
+   ├── 2_1/ (myAEON2go price for product 1)
     ├── 3_1/ (Lotus price for product 1)
     └── ... (price entries for all combos)
 ```

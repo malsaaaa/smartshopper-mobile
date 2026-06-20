@@ -39,7 +39,7 @@ void main() {
       productImage: 'assets/images/products/nescafe.png',
       currentPrice: 9.99,
       targetPrice: 11.99,
-      retailer: 'Giant',
+      retailer: 'myAEON2go',
     );
 
     expect(notification.type, 'price_target');

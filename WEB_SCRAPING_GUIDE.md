@@ -1,6 +1,6 @@
 # Web Scraping Setup Guide
 
-This guide explains how to use and customize the web scraping system for MyDin, Giant, and Lotus retailers.
+This guide explains how to use and customize the web scraping system for MyDin, myAEON2go, and Lotus retailers.
 
 ## Architecture Overview
 
@@ -9,14 +9,14 @@ The scraping system is built with a modular, extensible architecture:
 ```
 WebScraperService (coordinator)
 ├── MyDinScraper (implements BaseScraper)
-├── GiantScraper (implements BaseScraper)
+├── MyAeon2GoScraper (implements BaseScraper)
 └── LotusScraper (implements BaseScraper)
 ```
 
 ### Key Components
 
 1. **BaseScraper**: Abstract base class defining the scraper interface
-2. **RetailerScrapers**: Individual scrapers for each retailer (MyDin, Giant, Lotus)
+2. **RetailerScrapers**: Individual scrapers for each retailer (MyDin, myAEON2go, Lotus)
 3. **WebScraperService**: Central service that coordinates all scrapers and manages Firestore storage
 4. **web_scraper_provider.dart**: Riverpod providers for easy integration
 
@@ -29,7 +29,7 @@ lib/
 │   ├── scrapers/
 │   │   ├── base_scraper.dart             # Abstract base class
 │   │   ├── mydin_scraper.dart            # MyDin scraper
-│   │   ├── giant_scraper.dart            # Giant scraper
+│   │   ├── myaeon2go_scraper.dart        # myAEON2go scraper
 │   │   ├── lotus_scraper.dart            # Lotus scraper
 │   │   └── index.dart                    # Scraper exports
 │   └── index.dart                        # Service exports
@@ -54,7 +54,7 @@ final results = await service.scrapeAllRetailers(
   pageNumber: 1,
 );
 
-// Results: {'mydin': 145, 'giant': 203, 'lotus': 178}
+// Results: {'mydin': 145, 'myaeon2go': 203, 'lotus': 178}
 ```
 
 ### 2. Scrape a Single Retailer
@@ -227,7 +227,7 @@ retailers/
 │   ├── logoUrl: "..."
 │   └── updatedAt: (server timestamp)
 ├── 2/
-│   ├── name: "Giant"
+│   ├── name: "myAEON2go"
 │   └── ...
 └── 3/
     ├── name: "Lotus"
@@ -304,7 +304,7 @@ try {
 4. **Limit concurrent requests**:
    ```dart
    // Scrape one retailer at a time, not all in parallel
-   for (final retailer in ['mydin', 'giant', 'lotus']) {
+  for (final retailer in ['mydin', 'myaeon2go', 'lotus']) {
      await service.scrapeRetailer(retailer);
      await Future.delayed(Duration(seconds: 5));
    }
@@ -397,7 +397,7 @@ try {
 ## Files to Modify
 
 - [mydin_scraper.dart](../../services/scrapers/mydin_scraper.dart) - Update selectors for MyDin website
-- [giant_scraper.dart](../../services/scrapers/giant_scraper.dart) - Update selectors for Giant website
+- [myaeon2go_scraper.dart](../../services/scrapers/myaeon2go_scraper.dart) - Update myAEON2go scraping logic
 - [lotus_scraper.dart](../../services/scrapers/lotus_scraper.dart) - Update selectors for Lotus website
 
 Good luck with your scraping setup! 🚀

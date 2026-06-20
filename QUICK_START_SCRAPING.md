@@ -27,7 +27,7 @@ class MyScreen extends ConsumerWidget {
         final results = await ref.read(scrapeAllRetailersProvider(true).future);
         
         print('MyDin: ${results['mydin']} products');
-        print('Giant: ${results['giant']} products');
+        print('myAEON2go: ${results['myaeon2go']} products');
         print('Lotus: ${results['lotus']} products');
       },
       child: Text('Start Scraping'),
@@ -62,9 +62,9 @@ final service = WebScraperService();
 int mydinCount = await service.scrapeRetailer('mydin', storeInFirestore: true);
 print('Scraped $mydinCount MyDin products');
 
-// Scrape Giant only
-int giantCount = await service.scrapeRetailer('giant', storeInFirestore: true);
-print('Scraped $giantCount Giant products');
+// Scrape myAEON2go only
+int myAeon2GoCount = await service.scrapeRetailer('myaeon2go', storeInFirestore: true);
+print('Scraped $myAeon2GoCount myAEON2go products');
 
 // Scrape Lotus only
 int lotusCount = await service.scrapeRetailer('lotus', storeInFirestore: true);
@@ -139,15 +139,15 @@ When scraping starts, you'll see:
 ✅ MyDin: Scraped 145 products
 ✅ Stored retailer: MyDin
 ✅ Stored 145 products
-🔄 Scraping giant...
-✅ Giant: Scraped 203 products
-✅ Stored retailer: Giant
+🔄 Scraping myaeon2go...
+✅ myAEON2go: Scraped 203 products
+✅ Stored retailer: myAEON2go
 ✅ Stored 203 products
 🔄 Scraping lotus...
 ✅ Lotus: Scraped 178 products
 ✅ Stored retailer: Lotus
 ✅ Stored 178 products
-✅ Scraping complete: {'mydin': 145, 'giant': 203, 'lotus': 178}
+✅ Scraping complete: {'mydin': 145, 'myaeon2go': 203, 'lotus': 178}
 ```
 
 ## 🔧 Troubleshooting
@@ -162,7 +162,7 @@ When scraping starts, you'll see:
 3. Inspect product elements
 4. Update CSS selectors in scraper files:
    - `lib/services/scrapers/mydin_scraper.dart`
-   - `lib/services/scrapers/giant_scraper.dart`
+  - `lib/services/scrapers/myaeon2go_scraper.dart`
    - `lib/services/scrapers/lotus_scraper.dart`
 
 Example update:
@@ -202,7 +202,7 @@ final cleaned = text
 1. Open Firebase Console
 2. Go to Firestore Database
 3. Check these collections:
-   - `retailers` - Should have 3 docs (MyDin, Giant, Lotus)
+  - `retailers` - Should have 3 docs (MyDin, myAEON2go, Lotus)
    - `products` - Should have hundreds of products
    - `prices` - Should have entries for each product × retailer
 

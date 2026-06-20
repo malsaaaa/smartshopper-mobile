@@ -37,7 +37,7 @@ class _WebScraperControlScreenState extends ConsumerState<WebScraperControlScree
           // Individual Retailer Buttons
           _buildRetailerButton('MyDin', context),
           const SizedBox(height: 8),
-          _buildRetailerButton('Giant', context),
+          _buildRetailerButton('myAEON2go', context),
           const SizedBox(height: 8),
           _buildRetailerButton('Lotus', context),
           const SizedBox(height: 16),
