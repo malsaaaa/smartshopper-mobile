@@ -35,7 +35,19 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   }
 
   Future<void> _initLocation() async {
-    final pos = await LocationService.getCurrentPosition();
+    var pos = await LocationService.getCurrentPosition();
+    pos ??= Position(
+      latitude: LocationService.fallbackLat,
+      longitude: LocationService.fallbackLng,
+      timestamp: DateTime.now(),
+      accuracy: 0.0,
+      altitude: 0.0,
+      heading: 0.0,
+      speed: 0.0,
+      speedAccuracy: 0.0,
+      altitudeAccuracy: 0.0,
+      headingAccuracy: 0.0,
+    );
     if (mounted) {
       setState(() {
         _userPosition = pos;

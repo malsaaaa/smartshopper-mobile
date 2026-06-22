@@ -102,8 +102,12 @@ class LocationService {
       return null;
     }
     
-    final lat1 = currentPos?.latitude ?? fallbackLat;
-    final lon1 = currentPos?.longitude ?? fallbackLng;
+    if (currentPos == null) {
+      return null; // Return null if position is still loading
+    }
+    
+    final lat1 = currentPos.latitude;
+    final lon1 = currentPos.longitude;
     
     return _haversine(lat1, lon1, retailer.latitude!, retailer.longitude!);
   }

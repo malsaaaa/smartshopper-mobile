@@ -1209,6 +1209,26 @@ class SmartImage extends StatelessWidget {
 
 /// Helper function to resolve retailer logo with fallback
 String getRetailerLogo(String name, String? currentUrl) {
+  // If currentUrl contains 'giant', ignore it and let it fall back
+  if (currentUrl != null && currentUrl.toLowerCase().contains('giant')) {
+    currentUrl = '';
+  }
+
+  // If currentUrl is a valid network URL (and not the literal string "null"), prioritize it
+  if (currentUrl != null && 
+      currentUrl.isNotEmpty && 
+      currentUrl != 'null' && 
+      (currentUrl.startsWith('http://') || currentUrl.startsWith('https://'))) {
+    return currentUrl;
+  }
+
+  // If currentUrl is already a valid asset path, keep it
+  if (currentUrl != null && 
+      currentUrl.isNotEmpty && 
+      (currentUrl.startsWith('assets/') || currentUrl.startsWith('package:'))) {
+    return currentUrl;
+  }
+
   final normalized = name.toLowerCase();
   final fallback = normalized.contains('myaeon2go')
     ? 'assets/images/retailers/aeon.png'
@@ -1223,12 +1243,8 @@ String getRetailerLogo(String name, String? currentUrl) {
                       : '';
 
   if (fallback.isNotEmpty) {
-    if (currentUrl == null || currentUrl.isEmpty) return fallback;
-    if (currentUrl.startsWith('assets/') || currentUrl.startsWith('package:')) {
-      return currentUrl;
-    }
     return fallback;
   }
 
-  return currentUrl ?? '';
+  return (currentUrl == 'null') ? '' : (currentUrl ?? '');
 }

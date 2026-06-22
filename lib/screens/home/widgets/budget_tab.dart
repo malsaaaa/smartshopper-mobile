@@ -533,8 +533,9 @@ class _BudgetHistorySection extends ConsumerWidget {
     return historyAsync.when(
       data: (budgets) {
         final now = DateTime.now();
+        final currentMonthStart = DateTime(now.year, now.month, 1);
         final pastBudgets = budgets.where((b) {
-          return !(b.startDate.year == now.year && b.startDate.month == now.month);
+          return b.startDate.isBefore(currentMonthStart);
         }).toList();
 
         return Column(

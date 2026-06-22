@@ -22,7 +22,22 @@ final currentBudgetProvider = FutureProvider<Budget?>((ref) async {
 final budgetHistoryProvider = FutureProvider<List<Budget>>((ref) async {
   ref.watch(budgetNotifierProvider);
   final service = ref.watch(firestoreBudgetServiceProvider);
-  return service.getBudgetHistory();
+  final rawBudgets = await service.getBudgetHistory();
+
+  // Deduplicate budgets by year and month, keeping the most recently updated one
+  final uniqueBudgets = <String, Budget>{};
+  for (final b in rawBudgets) {
+    final key = '${b.startDate.year}-${b.startDate.month}';
+    final existing = uniqueBudgets[key];
+    if (existing == null || b.updatedAt.isAfter(existing.updatedAt)) {
+      uniqueBudgets[key] = b;
+    }
+  }
+
+  final sortedList = uniqueBudgets.values.toList()
+    ..sort((a, b) => b.startDate.compareTo(a.startDate));
+
+  return sortedList;
 });
 
 /// Budget Notifier for managing budget state

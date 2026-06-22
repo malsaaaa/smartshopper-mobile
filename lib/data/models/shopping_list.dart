@@ -34,6 +34,10 @@ class ShoppingItem {
 
   /// Factory constructor for creating from JSON
   factory ShoppingItem.fromJson(Map<String, dynamic> json) {
+    final rawRetailerName = json['retailerName'] as String?;
+    final retailerName = (rawRetailerName != null && rawRetailerName.toLowerCase().contains('giant')) ? 'myAEON2go' : rawRetailerName;
+    final rawLogoUrl = json['retailerLogoUrl'] as String?;
+    final retailerLogoUrl = (rawLogoUrl != null && rawLogoUrl.toLowerCase().contains('giant')) ? '' : rawLogoUrl;
     return ShoppingItem(
       documentId: json['documentId'] as String?,
       id: json['id'] as int?,
@@ -44,8 +48,8 @@ class ShoppingItem {
       estimatedPrice: (json['estimatedPrice'] as num).toDouble(),
       isPurchased: json['isPurchased'] as bool? ?? false,
       retailerId: json['retailerId'] as int?,
-      retailerName: json['retailerName'] as String?,
-      retailerLogoUrl: json['retailerLogoUrl'] as String?,
+      retailerName: retailerName,
+      retailerLogoUrl: retailerLogoUrl,
       imageUrl: json['imageUrl'] as String?,
       createdAt: json['createdAt'] is DateTime 
           ? json['createdAt'] as DateTime 
@@ -58,6 +62,10 @@ class ShoppingItem {
 
   /// Factory constructor for creating from Firestore document
   factory ShoppingItem.fromFirestore(String documentId, Map<String, dynamic> json) {
+    final rawRetailerName = json['retailerName'] as String?;
+    final retailerName = (rawRetailerName != null && rawRetailerName.toLowerCase().contains('giant')) ? 'myAEON2go' : rawRetailerName;
+    final rawLogoUrl = json['retailerLogoUrl'] as String?;
+    final retailerLogoUrl = (rawLogoUrl != null && rawLogoUrl.toLowerCase().contains('giant')) ? '' : rawLogoUrl;
     return ShoppingItem(
       documentId: documentId,
       productId: json['productId'] as int?,
@@ -66,8 +74,8 @@ class ShoppingItem {
       estimatedPrice: (json['estimatedPrice'] as num?)?.toDouble() ?? 0.0,
       isPurchased: json['isPurchased'] as bool? ?? false,
       retailerId: json['retailerId'] is int ? json['retailerId'] as int : int.tryParse(json['retailerId']?.toString() ?? ''),
-      retailerName: json['retailerName'] as String?,
-      retailerLogoUrl: json['retailerLogoUrl'] as String?,
+      retailerName: retailerName,
+      retailerLogoUrl: retailerLogoUrl,
       imageUrl: json['imageUrl'] as String?,
       createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
       updatedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),

@@ -173,13 +173,15 @@ class _RetailerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedLogoUrl = getRetailerLogo(name, logoUrl);
+
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
       color: AppTheme.primaryLight,
       child: Row(
         children: [
-          if (logoUrl != null && logoUrl!.isNotEmpty) ...[
+          if (resolvedLogoUrl.isNotEmpty) ...[
             Container(
               width: 20,
               height: 20,
@@ -189,7 +191,7 @@ class _RetailerHeader extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: SmartImage(
-                imageUrl: logoUrl!,
+                imageUrl: resolvedLogoUrl,
                 width: 20,
                 height: 20,
                 fit: BoxFit.contain,
