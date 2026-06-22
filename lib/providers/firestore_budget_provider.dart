@@ -18,6 +18,13 @@ final currentBudgetProvider = FutureProvider<Budget?>((ref) async {
   return service.getCurrentBudget();
 });
 
+/// Budget History Provider (reads from Firestore)
+final budgetHistoryProvider = FutureProvider<List<Budget>>((ref) async {
+  ref.watch(budgetNotifierProvider);
+  final service = ref.watch(firestoreBudgetServiceProvider);
+  return service.getBudgetHistory();
+});
+
 /// Budget Notifier for managing budget state
 class BudgetNotifier extends StateNotifier<AsyncValue<Budget?>> {
   final Ref _ref;

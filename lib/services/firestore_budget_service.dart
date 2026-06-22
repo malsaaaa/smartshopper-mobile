@@ -220,6 +220,24 @@ class FirestoreBudgetService {
     }
   }
 
+  /// Get budget history for the current user
+  Future<List<Budget>> getBudgetHistory() async {
+    try {
+      final userId = _getCurrentUserId();
+      if (userId == null) throw Exception('User not authenticated');
+
+      final snapshot = await _getBudgetsCollection(userId).limit(100).get();
+      final budgets = snapshot.docs.map((doc) => _buildBudget(doc)).toList();
+      
+      // Sort budgets by startDate descending
+      budgets.sort((a, b) => b.startDate.compareTo(a.startDate));
+      
+      return budgets;
+    } catch (e) {
+      throw Exception('Failed to get budget history: $e');
+    }
+  }
+
   /// Build Budget from Firestore document
   Budget _buildBudget(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;

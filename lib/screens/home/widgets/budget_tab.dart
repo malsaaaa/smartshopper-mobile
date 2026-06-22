@@ -5,6 +5,7 @@ import 'package:smartshopper_mobile/providers/cart_provider.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/smart_recommendations.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
+import 'package:smartshopper_mobile/data/models/index.dart';
 
 class BudgetTab extends ConsumerWidget {
   const BudgetTab({super.key});
@@ -61,20 +62,41 @@ class BudgetTab extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'MONTHLY LIMIT',
-                                style: AppTypography.labelSmall.copyWith(
-                                  color: AppTheme.textTertiary,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    'MONTHLY LIMIT',
+                                    style: AppTypography.labelSmall.copyWith(
+                                      color: AppTheme.textTertiary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.xs),
+                                  GestureDetector(
+                                    onTap: () => _showEditLimitDialog(context, ref, limit),
+                                    child: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 14,
+                                      color: AppTheme.primary,
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: AppSpacing.sm),
-                              Text(
-                                'RM ${limit.toStringAsFixed(2)}',
-                                style: AppTypography.headline1,
+                              SizedBox(
+                                width: double.infinity,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'RM ${limit.toStringAsFixed(2)}',
+                                    style: AppTypography.headline1,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(width: AppSpacing.md),
                         Stack(
                           alignment: Alignment.center,
                           children: [
@@ -98,6 +120,7 @@ class BudgetTab extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -109,13 +132,16 @@ class BudgetTab extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.sm),
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerRight,
-                                child: Text(
-                                  'RM ${spent.toStringAsFixed(2)}',
-                                  style: AppTypography.headline2.copyWith(
-                                    color: isExceeded ? AppTheme.error : AppTheme.accentOrange,
+                              SizedBox(
+                                width: double.infinity,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    'RM ${spent.toStringAsFixed(2)}',
+                                    style: AppTypography.headline2.copyWith(
+                                      color: isExceeded ? AppTheme.error : AppTheme.accentOrange,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -239,6 +265,9 @@ class BudgetTab extends ConsumerWidget {
                   ],   // end BaseCard Column children
                 ),
               ),
+              const SizedBox(height: AppSpacing.xxl),
+              const _BudgetHistorySection(),
+              const SizedBox(height: AppSpacing.xxl),
 
               // ── Smart Shopping Recommendations ──────────────────────────
               const SmartRecommendations(),
@@ -278,6 +307,71 @@ class BudgetTab extends ConsumerWidget {
       case 'Travel Cost': return AppTheme.accentOrange;
       default: return Colors.deepPurpleAccent;
     }
+  }
+
+  void _showEditLimitDialog(BuildContext context, WidgetRef ref, double currentLimit) {
+    final controller = TextEditingController(text: currentLimit.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Monthly Limit'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Monthly Limit (RM)', style: AppTypography.labelLarge),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                hintText: 'e.g., 500',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newLimitText = controller.text.trim();
+              final newLimit = double.tryParse(newLimitText);
+              if (newLimit == null || newLimit <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid positive limit')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+              
+              try {
+                await ref.read(budgetNotifierProvider.notifier).updateBudgetLimit(newLimit);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Budget limit updated successfully')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error updating budget limit: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -421,6 +515,228 @@ class _LoginPrompt extends StatelessWidget {
               onPressed: () {
                 Navigator.pushReplacementNamed(context, '/firebase-auth');
               },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetHistorySection extends ConsumerWidget {
+  const _BudgetHistorySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(budgetHistoryProvider);
+
+    return historyAsync.when(
+      data: (budgets) {
+        final now = DateTime.now();
+        final pastBudgets = budgets.where((b) {
+          return !(b.startDate.year == now.year && b.startDate.month == now.month);
+        }).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Budget History',
+              style: AppTypography.headline2.copyWith(fontSize: 22),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Track your past monthly limits and overall spending',
+              style: AppTypography.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if (pastBudgets.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  border: Border.all(color: AppTheme.divider),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.history_toggle_off,
+                      size: 40,
+                      color: AppTheme.textSecondary.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'No budget history available',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Your past monthly budgets will be listed here.',
+                      style: AppTypography.bodySmall.copyWith(color: AppTheme.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              Column(
+                children: pastBudgets.map((b) => _PastBudgetCard(budget: b)).toList(),
+              ),
+          ],
+        );
+      },
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (err, _) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+        child: Center(
+          child: Text(
+            'Error loading budget history',
+            style: AppTypography.bodyMedium.copyWith(color: AppTheme.error),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PastBudgetCard extends StatelessWidget {
+  final Budget budget;
+
+  const _PastBudgetCard({required this.budget});
+
+  String _formatMonthYear(DateTime date) {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    if (date.month >= 1 && date.month <= 12) {
+      return '${months[date.month - 1]} ${date.year}';
+    }
+    return '${date.month}/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isExceeded = budget.isExceeded;
+    final statusColor = isExceeded ? AppTheme.error : AppTheme.primary;
+    final statusText = isExceeded ? 'Exceeded' : 'Within Limit';
+    final percentage = budget.percentageUsed;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: BaseCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row with Month/Year and Status Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _formatMonthYear(budget.startDate),
+                  style: AppTypography.labelLarge.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: AppTypography.labelSmall.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            
+            // Row with Limit and Spent
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MONTHLY LIMIT',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'RM ${budget.limit.toStringAsFixed(2)}',
+                      style: AppTypography.bodyLarge.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'TOTAL SPENT',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'RM ${budget.spent.toStringAsFixed(2)}',
+                      style: AppTypography.bodyLarge.copyWith(
+                        color: isExceeded ? AppTheme.error : AppTheme.accentOrange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              child: LinearProgressIndicator(
+                value: percentage,
+                minHeight: 6,
+                backgroundColor: AppTheme.divider,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isExceeded ? AppTheme.error : AppTheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            
+            // Percentage used text
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${(percentage * 100).toStringAsFixed(0)}% used',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppTheme.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
             ),
           ],
         ),
