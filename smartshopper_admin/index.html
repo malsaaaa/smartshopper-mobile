@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=1.0.1" />
   <!-- Firebase SDK (compat version - works without bundler) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -74,9 +74,6 @@
       <a href="#" class="nav-item" data-page="users" onclick="showPage('users',this)">
         <span class="nav-icon">👥</span><span>Users</span>
       </a>
-      <a href="#" class="nav-item" data-page="analytics" onclick="showPage('analytics',this)">
-        <span class="nav-icon">📈</span><span>Analytics</span>
-      </a>
       <a href="#" class="nav-item" data-page="notifications" onclick="showPage('notifications',this)">
         <span class="nav-icon">🔔</span><span>Notifications</span>
       </a>
@@ -85,9 +82,6 @@
       </a>
       <a href="#" class="nav-item" data-page="settings" onclick="showPage('settings',this)">
         <span class="nav-icon">⚙️</span><span>Settings</span>
-      </a>
-      <a href="#" class="nav-item" onclick="handleLogout()">
-        <span class="nav-icon">🚪</span><span>Logout</span>
       </a>
     </nav>
 
@@ -286,32 +280,6 @@
       </div>
     </section>
 
-    <!-- ── ANALYTICS PAGE ─────────────────────────────────────────────── -->
-    <section class="page" id="page-analytics">
-      <div class="page-header">
-        <h1>Analytics</h1>
-        <p>Insights and data trends for SmartShopper.</p>
-      </div>
-
-      <div class="analytics-grid">
-        <div class="card">
-          <div class="card-header"><h3>Price Comparison — Milo Activ-Go</h3></div>
-          <div class="bar-chart" id="chart-milo"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Price Comparison — Maggi Noodles</h3></div>
-          <div class="bar-chart" id="chart-maggi"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Products by Brand</h3></div>
-          <div class="donut-chart" id="chart-brands"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Products by Category</h3></div>
-          <div class="donut-chart" id="chart-types"></div>
-        </div>
-      </div>
-    </section>
 
     <!-- ── NOTIFICATIONS PAGE ─────────────────────────────────────────── -->
     <section class="page" id="page-notifications">
@@ -550,11 +518,7 @@
           <div class="settings-form">
             <div class="form-group">
               <label>Admin Email</label>
-              <input type="email" value="admin@smartshopper.my" />
-            </div>
-            <div class="form-group">
-              <label>Currency</label>
-              <select><option>MYR (RM)</option><option>USD ($)</option></select>
+              <input type="email" value="[EMAIL_ADDRESS]" />
             </div>
             <button class="btn-primary" onclick="showToast('Settings saved!')">Save Changes</button>
           </div>
@@ -566,10 +530,6 @@
             <div class="form-group toggle-row">
               <label>Dark Mode</label>
               <label class="toggle"><input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()" /><span class="slider"></span></label>
-            </div>
-            <div class="form-group toggle-row">
-              <label>Compact Sidebar</label>
-              <label class="toggle"><input type="checkbox" onchange="toggleCompact()" /><span class="slider"></span></label>
             </div>
             <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
               <h3 style="font-size: .9rem; margin-bottom: 8px; color: var(--text-2);">Database Management</h3>
@@ -750,7 +710,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
+  <script src="firebase-config.js?v=1.0.1"></script>
+  <script src="app.js?v=1.0.1"></script>
 </body>
 </html>
