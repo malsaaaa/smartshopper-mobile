@@ -48,6 +48,17 @@
   background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #1a3a1c 100%);
   display: grid; place-items: center;
   z-index: 1000;
+  overflow: hidden;
+}
+.login-screen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url('login_bg.png');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.15;
+  z-index: -1;
+  pointer-events: none;
 }
 .login-card {
   background: #fff;
@@ -693,6 +704,7 @@ body.dark .bar-track { background: #2d3142; }
 }
 .badge-active  { background:#e8f5e9; color:#2e7d32; }
 .badge-admin   { background:#e3f2fd; color:#1565c0; }
+.badge-super-admin { background:#f3e5f5; color:#7b1fa2; }
 .badge-inactive{ background:#fce4ec; color:#c62828; }
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */

@@ -86,6 +86,9 @@
       <a href="#" class="nav-item" data-page="settings" onclick="showPage('settings',this)">
         <span class="nav-icon">⚙️</span><span>Settings</span>
       </a>
+      <a href="#" class="nav-item" onclick="handleLogout()">
+        <span class="nav-icon">🚪</span><span>Logout</span>
+      </a>
     </nav>
 
     <div class="sidebar-footer">
@@ -94,7 +97,12 @@
         <span class="admin-name">Admin</span>
         <span class="admin-role">Super Admin</span>
       </div>
-      <button class="logout-btn" title="Logout">⏻</button>
+      <button class="logout-btn" title="Logout" onclick="handleLogout()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+          <line x1="12" y1="2" x2="12" y2="12"></line>
+        </svg>
+      </button>
     </div>
   </aside>
 
@@ -105,13 +113,6 @@
     <header class="topbar">
       <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
       <div class="topbar-title" id="page-title">Dashboard</div>
-      <div class="topbar-actions">
-        <div class="search-wrap">
-          <input type="text" class="topbar-search" placeholder="Search…" id="globalSearch" oninput="handleGlobalSearch()" />
-          <span class="search-icon">🔍</span>
-        </div>
-        <div class="notif-btn" title="Notifications">🔔 <span class="badge">3</span></div>
-      </div>
     </header>
 
     <!-- ── DASHBOARD PAGE ──────────────────────────────────────────────── -->
@@ -324,18 +325,15 @@
       <div class="notifications-grid">
         <div class="card">
           <div class="card-header">
-            <h3>Zero-Backend Mode</h3>
-            <span class="chip">Free</span>
+            <h3>Live Cloud Functions</h3>
+            <span class="chip">Active</span>
           </div>
           <div class="settings-form">
             <p style="font-size:.9rem;line-height:1.6;color:var(--text-2)">
-              This mode does not use Cloud Functions. The dashboard composes a valid FCM payload and copies it to your clipboard so you can paste it into Firebase Console or a backend later.
+              The backend triggers are active! Sending notifications from this dashboard writes request documents directly to Firestore, which trigger the Cloud Functions backend to instantly dispatch push alerts via FCM.
             </p>
             <p style="font-size:.78rem;color:var(--text-3);line-height:1.5">
-              This keeps deployment free: only Firestore rules and Hosting are needed.
-            </p>
-            <p style="font-size:.78rem;color:var(--text-2);line-height:1.5">
-              Use the quick-send buttons below, then paste the copied JSON into Firebase Console's FCM message composer.
+              The payload is also copied to your clipboard as a developer convenience.
             </p>
           </div>
         </div>

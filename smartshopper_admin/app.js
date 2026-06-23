@@ -101,6 +101,24 @@ auth.onAuthStateChanged(async user => {
         loginScreen.style.display = 'none';
         appContainer.style.display = 'flex';
         document.querySelector('.admin-name').textContent = userData.name || user.email.split('@')[0];
+        
+        // Update Admin Role in sidebar footer dynamically
+        const roleEl = document.querySelector('.admin-role');
+        if (roleEl) {
+          roleEl.textContent = userData.isSuperAdmin ? 'Super Admin' : 'Admin';
+        }
+
+        // Auto-promote Syed Danish to Super Admin if not already
+        if (user.email === 'sydnish03@gmail.com' && !userData.isSuperAdmin) {
+          db.collection('users').doc(user.uid).update({
+            isSuperAdmin: true,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).then(() => {
+            showToast('🌟 Account upgraded to Super Admin!');
+            if (roleEl) roleEl.textContent = 'Super Admin';
+          }).catch(err => console.error('Failed to auto-promote:', err));
+        }
+
         initDashboard();
       } else {
         // Not an admin - sign out and show error
@@ -613,34 +631,88 @@ function renderUsers() {
   const tbody = document.getElementById('users-tbody');
   tbody.innerHTML = users.map(u => {
     const joinedDate = u.createdAt ? u.createdAt.toDate().toLocaleDateString() : '—';
+    
+    // Determine role and badge
+    let roleText = 'User';
+    let badgeClass = 'badge-active';
+    let actionButtons = '';
+    
+    if (u.isSuperAdmin) {
+      roleText = 'Super Admin';
+      badgeClass = 'badge-super-admin';
+      actionButtons = `
+        <button class="action-btn edit" onclick="changeRole('${u.id}', 'admin')">
+          👤 Demote to Admin
+        </button>
+      `;
+    } else if (u.isAdmin) {
+      roleText = 'Admin';
+      badgeClass = 'badge-admin';
+      actionButtons = `
+        <button class="action-btn edit" onclick="changeRole('${u.id}', 'super')">
+          🌟 Promote to Super
+        </button>
+        <button class="action-btn edit" onclick="changeRole('${u.id}', 'user')">
+          👤 Demote to User
+        </button>
+      `;
+    } else {
+      roleText = 'User';
+      badgeClass = 'badge-active';
+      actionButtons = `
+        <button class="action-btn edit" onclick="changeRole('${u.id}', 'admin')">
+          👑 Promote to Admin
+        </button>
+      `;
+    }
+
     return `
     <tr>
       <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-3);">${u.id}</td>
       <td><strong>${u.name || 'Anonymous'}</strong></td>
       <td style="color:var(--text-2)">${u.email}</td>
-      <td><span class="badge-status ${u.isAdmin ? 'badge-admin' : 'badge-active'}">${u.isAdmin ? 'Admin' : 'User'}</span></td>
+      <td><span class="badge-status ${badgeClass}">${roleText}</span></td>
       <td style="color:var(--text-2);font-size:.82rem">${joinedDate}</td>
       <td>
-        <button class="action-btn edit" onclick="toggleAdmin('${u.id}', ${!!u.isAdmin})">
-          ${u.isAdmin ? '👤 Demote' : '👑 Promote'}
+        ${actionButtons}
+        <button class="action-btn delete" onclick="deleteUser('${u.id}')">
+          🗑 Remove
         </button>
       </td>
     </tr>`;
   }).join('');
 }
 
-async function toggleAdmin(userId, currentStatus) {
-  const newStatus = !currentStatus;
-  const action = newStatus ? 'promote to Admin' : 'demote to User';
-  
-  if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+async function changeRole(userId, newRole) {
+  let updateFields = {};
+  if (newRole === 'super') {
+    updateFields = { isAdmin: true, isSuperAdmin: true };
+  } else if (newRole === 'admin') {
+    updateFields = { isAdmin: true, isSuperAdmin: false };
+  } else {
+    updateFields = { isAdmin: false, isSuperAdmin: false };
+  }
+
+  const confirmMsg = `Are you sure you want to change this user's role to ${newRole.toUpperCase()}?`;
+  if (!confirm(confirmMsg)) return;
 
   try {
     await db.collection('users').doc(userId).update({
-      isAdmin: newStatus,
+      ...updateFields,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-    showToast(`✅ User ${newStatus ? 'promoted' : 'demoted'} successfully!`);
+    showToast(`✅ User role updated to ${newRole}!`);
+  } catch (e) {
+    showToast('❌ Error: ' + e.message);
+  }
+}
+
+async function deleteUser(userId) {
+  if (!confirm('Are you sure you want to remove this user from the system? This action cannot be undone.')) return;
+
+  try {
+    await db.collection('users').doc(userId).delete();
+    showToast('🗑 User removed successfully!');
   } catch (e) {
     showToast('❌ Error: ' + e.message);
   }
@@ -823,29 +895,38 @@ async function submitNotification() {
   const payload = buildNotificationPayload(fields);
 
   try {
+    // 1. Copy to clipboard as a developer fallback
     await copyPayloadToClipboard(payload);
+
+    // 2. Write to Firestore to trigger backend Cloud Function
+    await db.collection('notification_requests').add({
+      ...payload,
+      status: 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
     pushNotificationHistory({
       at: new Date().toISOString(),
       type: fields.type,
       title: fields.title,
-      status: 'copied',
-      channel: 'clipboard',
+      status: 'sent',
+      channel: 'Cloud Function',
       target: fields.topic,
       source: 'manual',
     });
 
-    showToast('✅ Notification payload copied');
+    showToast('🚀 Notification sent via Cloud Function!');
   } catch (error) {
     pushNotificationHistory({
       at: new Date().toISOString(),
       type: fields.type,
       title: fields.title,
       status: 'failed',
-      channel: 'clipboard',
+      channel: 'Cloud Function',
       target: fields.topic,
       source: 'manual',
     });
-    showToast('❌ Failed to copy payload: ' + error.message);
+    showToast('❌ Failed to send: ' + error.message);
   }
 }
 
@@ -908,6 +989,8 @@ async function sendQuickNotification(template) {
 window.sendQuickNotification = sendQuickNotification;
 window.submitNotification = submitNotification;
 window.renderNotifications = renderNotifications;
+window.changeRole = changeRole;
+window.deleteUser = deleteUser;
 
 function toggleDarkMode() { document.body.classList.toggle('dark'); }
 
