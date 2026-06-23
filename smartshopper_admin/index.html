@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=1.0.1" />
+  <link rel="stylesheet" href="styles.css?v=1.0.3" />
   <!-- Firebase SDK (compat version - works without bundler) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -533,8 +533,8 @@
             </div>
             <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
               <h3 style="font-size: .9rem; margin-bottom: 8px; color: var(--text-2);">Database Management</h3>
-              <p style="font-size: .75rem; color: var(--text-3); margin-bottom: 12px;">Populate your Firestore with initial products and prices.</p>
-              <button class="btn-secondary" onclick="seedDatabase()" style="width: 100%;">🌱 Seed Initial Data</button>
+              <p style="font-size: .75rem; color: var(--text-3); margin-bottom: 12px;">Wipe all products, prices, and retailers from Firestore.</p>
+              <button class="btn-danger" onclick="clearDatabase()" style="width: 100%;">🗑 Clear Database</button>
             </div>
           </div>
         </div>
@@ -710,7 +710,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <script src="firebase-config.js?v=1.0.1"></script>
-  <script src="app.js?v=1.0.1"></script>
+  <script src="firebase-config.js?v=1.0.5"></script>
+  <script src="app.js?v=1.0.5"></script>
 </body>
 </html>

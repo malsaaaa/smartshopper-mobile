@@ -81,6 +81,19 @@ class WebScraperService {
     );
   }
 
+  Future<void> _log(String level, String retailer, String message) async {
+    try {
+      await _db.collection('scraper_logs').add({
+        'timestamp': FieldValue.serverTimestamp(),
+        'level': level,
+        'retailer': retailer,
+        'message': message,
+      });
+    } catch (e) {
+      print('Error writing scraper log: $e');
+    }
+  }
+
   /// Internal scrape logic for a single retailer
   Future<int> _scrapeRetailer(
     String retailerName,
@@ -90,14 +103,22 @@ class WebScraperService {
     String? category,
   }) async {
     print('🔄 Scraping $retailerName...');
+    
+    // Normalize casing for logs/display
+    final displayRetailer = scraper.getRetailerInfo().name;
 
     try {
       // Get retailer info
       final retailerInfo = scraper.getRetailerInfo();
       
+      await _log('INFO', displayRetailer, 'Scraping job started — target: ${retailerInfo.website}');
+      await _log('INFO', displayRetailer, 'Sending HTTP request to retailer website…');
+
       if (storeInFirestore) {
         await _storeRetailer(retailerInfo);
       }
+
+      await _log('INFO', displayRetailer, 'Connected. Parsing document structure and extracting product listings…');
 
       // Scrape products
       final products = await scraper.scrapeProducts(
@@ -107,17 +128,22 @@ class WebScraperService {
 
       if (products.isEmpty) {
         print('⚠️ No products found for $retailerName');
+        await _log('WARN', displayRetailer, 'Connected, but no products were found. Scraping completed with 0 items.');
         return 0;
       }
+
+      await _log('INFO', displayRetailer, 'Scraped ${products.length} product prices. Writing updated prices to Firestore…');
 
       // Store products and prices
       if (storeInFirestore) {
         await _storeProducts(products);
       }
 
+      await _log('SUCCESS', displayRetailer, 'Scraping job completed. ${products.length} prices updated in database.');
       return products.length;
     } catch (e) {
-      print('❌ Error scraping $retailerName: $e');
+      print('❌ Error scraping $displayRetailer: $e');
+      await _log('ERROR', displayRetailer, 'Scraping job failed with error: $e');
       return 0;
     }
   }

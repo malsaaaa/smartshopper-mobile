@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
+import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 
 /// Screen displaying all price updates
-class AllPricesScreen extends StatefulWidget {
+class AllPricesScreen extends ConsumerStatefulWidget {
   const AllPricesScreen({super.key});
 
   @override
-  State<AllPricesScreen> createState() => _AllPricesScreenState();
+  ConsumerState<AllPricesScreen> createState() => _AllPricesScreenState();
 }
 
-class _AllPricesScreenState extends State<AllPricesScreen> {
+class _AllPricesScreenState extends ConsumerState<AllPricesScreen> {
   late TextEditingController _searchController;
-  List<Price> _filteredPrices = [];
   String _sortBy = 'recent'; // recent, price_low, price_high
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _filteredPrices = MockData.prices;
   }
 
   @override
@@ -30,108 +29,112 @@ class _AllPricesScreenState extends State<AllPricesScreen> {
     super.dispose();
   }
 
-  void _filterAndSort(String query) {
-    List<Price> filtered = MockData.prices;
-
-    // Filter by search query
-    if (query.isNotEmpty) {
-      filtered = filtered.where((price) {
-        final productName = price.product?.name.toLowerCase() ?? '';
-        final retailerName = price.retailer?.name.toLowerCase() ?? '';
-        final searchQuery = query.toLowerCase();
-        return productName.contains(searchQuery) ||
-            retailerName.contains(searchQuery);
-      }).toList();
-    }
-
-    // Sort
-    switch (_sortBy) {
-      case 'price_low':
-        filtered.sort((a, b) => a.price.compareTo(b.price));
-        break;
-      case 'price_high':
-        filtered.sort((a, b) => b.price.compareTo(a.price));
-        break;
-      case 'recent':
-      default:
-        filtered.sort((a, b) => b.scrapedAt.compareTo(a.scrapedAt));
-    }
-
-    setState(() => _filteredPrices = filtered);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final pricesAsync = ref.watch(enhancedPricesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Price Updates'),
         elevation: 1,
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: SearchField(
-              controller: _searchController,
-              onChanged: _filterAndSort,
-              hint: 'Search products or retailers...',
-            ),
-          ),
+      body: pricesAsync.when(
+        data: (allPrices) {
+          // Filter by search query
+          List<Price> filtered = List.from(allPrices);
+          final query = _searchController.text.trim();
+          if (query.isNotEmpty) {
+            filtered = filtered.where((price) {
+              final productName = price.product?.name.toLowerCase() ?? '';
+              final retailerName = price.retailer?.name.toLowerCase() ?? '';
+              final searchQuery = query.toLowerCase();
+              return productName.contains(searchQuery) ||
+                  retailerName.contains(searchQuery);
+            }).toList();
+          }
 
-          // Sort options
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Row(
-              children: [
-                Text(
-                  'Sort by:',
-                  style: AppTypography.labelSmall,
+          // Sort
+          switch (_sortBy) {
+            case 'price_low':
+              filtered.sort((a, b) => a.price.compareTo(b.price));
+              break;
+            case 'price_high':
+              filtered.sort((a, b) => b.price.compareTo(a.price));
+              break;
+            case 'recent':
+            default:
+              filtered.sort((a, b) => b.scrapedAt.compareTo(a.scrapedAt));
+          }
+
+          return Column(
+            children: [
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: SearchField(
+                  controller: _searchController,
+                  onChanged: (q) => setState(() {}),
+                  hint: 'Search products or retailers...',
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildSortButton('Recent', 'recent'),
-                        const SizedBox(width: AppSpacing.sm),
-                        _buildSortButton('Price Low', 'price_low'),
-                        const SizedBox(width: AppSpacing.sm),
-                        _buildSortButton('Price High', 'price_high'),
-                      ],
+              ),
+
+              // Sort options
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: Row(
+                  children: [
+                    Text(
+                      'Sort by:',
+                      style: AppTypography.labelSmall,
                     ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildSortButton('Recent', 'recent'),
+                            const SizedBox(width: AppSpacing.sm),
+                            _buildSortButton('Price Low', 'price_low'),
+                            const SizedBox(width: AppSpacing.sm),
+                            _buildSortButton('Price High', 'price_high'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // Price list
+              if (filtered.isEmpty)
+                Expanded(
+                  child: EmptyState(
+                    icon: Icons.trending_down,
+                    title: 'No Prices Found',
+                    message: 'No prices match your search criteria',
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final price = filtered[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: _buildPriceCard(context, price),
+                      );
+                    },
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Price list
-          if (_filteredPrices.isEmpty)
-            Expanded(
-              child: EmptyState(
-                icon: Icons.trending_down,
-                title: 'No Prices Found',
-                message: 'No prices match your search criteria',
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: _filteredPrices.length,
-                itemBuilder: (context, index) {
-                  final price = _filteredPrices[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: _buildPriceCard(context, price),
-                  );
-                },
-              ),
-            ),
-        ],
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(child: Text('Error: $err')),
       ),
     );
   }
@@ -140,11 +143,11 @@ class _AllPricesScreenState extends State<AllPricesScreen> {
   Widget _buildPriceCard(BuildContext context, Price price) {
     return BaseCard(
       onTap: () {
-        if (price.product != null) {
+        if (price.productId != null) {
           Navigator.pushNamed(
             context,
             '/product-details',
-            arguments: price.product!.id,
+            arguments: price.productId,
           );
         }
       },
@@ -203,7 +206,6 @@ class _AllPricesScreenState extends State<AllPricesScreen> {
       selected: isSelected,
       onSelected: (selected) {
         setState(() => _sortBy = value);
-        _filterAndSort(_searchController.text);
       },
       backgroundColor: AppTheme.surface,
       selectedColor: AppTheme.primary,

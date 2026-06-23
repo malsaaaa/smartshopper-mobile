@@ -11,6 +11,7 @@ import 'package:smartshopper_mobile/services/fcm_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartshopper_mobile/screens/home/home_screen.dart';
 import 'package:smartshopper_mobile/screens/auth/firebase_auth_screen.dart';
+import 'package:smartshopper_mobile/providers/web_scraper_provider.dart';
 
 // Global navigatorKey for handling push notification navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -90,6 +91,9 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Keep background remote scraper listener active
+    ref.watch(webScraperListenerProvider);
+
     ref.listen(notificationPreferencesProvider, (previous, next) {
       FCMService().updatePreferences(next);
     });

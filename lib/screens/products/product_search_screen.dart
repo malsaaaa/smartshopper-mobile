@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/add_to_list_sheet.dart';
@@ -42,7 +41,8 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
       return;
     }
 
-    List<Product> results = MockData.products
+    final allProducts = ref.read(productsStreamProvider).valueOrNull ?? [];
+    List<Product> results = allProducts
         .where((p) =>
             p.name.toLowerCase().contains(query.toLowerCase()) ||
             p.description.toLowerCase().contains(query.toLowerCase()))
@@ -67,12 +67,14 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   }
 
   /// Get all unique categories from products
-  List<String> _getCategories() {
-    return ['All', ...MockData.getCategories()];
+  List<String> _getCategories(List<String> categories) {
+    return ['All', ...categories];
   }
 
   @override
   Widget build(BuildContext context) {
+    final categories = ref.watch(categoriesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search Products'),
@@ -92,7 +94,7 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
           ),
 
           // Category Filter
-          _buildCategoryFilter(),
+          _buildCategoryFilter(categories),
 
           // Search Results
           Expanded(
@@ -104,12 +106,12 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   }
 
   /// Build horizontal scrollable category filter
-  Widget _buildCategoryFilter() {
+  Widget _buildCategoryFilter(List<String> categories) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Row(
-        children: _getCategories().map((category) {
+        children: _getCategories(categories).map((category) {
           final isSelected = _selectedCategory == category;
           return Padding(
             padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -134,7 +136,8 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   Widget _buildSearchResults() {
     if (!_hasSearched) {
       // Show recommended / popular products when user hasn't searched yet
-      final recommendations = MockData.products.take(6).toList();
+      final allProducts = ref.watch(productsStreamProvider).valueOrNull ?? [];
+      final recommendations = allProducts.take(6).toList();
       return ListView.builder(
         padding: const EdgeInsets.all(AppSpacing.lg),
         itemCount: recommendations.length,
@@ -172,7 +175,7 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
 
   /// Build individual product card
   Widget _buildProductCard(Product product, BuildContext context) {
-    final prices = MockData.getPricesForProduct(product.id);
+    final prices = ref.watch(pricesForProductProvider(product.id));
 
     if (prices.isEmpty) {
       return const SizedBox.shrink();

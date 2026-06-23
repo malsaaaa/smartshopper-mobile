@@ -1,7 +1,6 @@
 /// Notifications State Management with Provider
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/services/notification_service.dart';
 
 // ============== STATE PROVIDERS ==============
@@ -43,7 +42,7 @@ final discountNotificationsEnabledProvider =
 // ============== STATE NOTIFIER ==============
 
 class NotificationsNotifier extends StateNotifier<List<Notification>> {
-  NotificationsNotifier() : super(MockData.notifications);
+  NotificationsNotifier() : super(const []);
 
   /// Create and add a discount notification
   void addDiscountNotification({

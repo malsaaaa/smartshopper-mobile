@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
 import 'package:smartshopper_mobile/providers/firestore_service_provider.dart';
@@ -271,15 +270,24 @@ final cartCategoryBreakdownProvider = Provider<Map<String, double>>((ref) {
   final cart = ref.watch(cartNotifierProvider).valueOrNull;
   if (cart == null) return {};
 
-  final breakdown = <String, double>{};
-  for (final item in cart.items) {
-    // Look up product to get product type (Actual Category)
-    final product = MockData.getProductById(item.productId ?? 0);
-    final category = product?.productType ?? 'Other';
-    final itemTotal = item.estimatedPrice * item.quantity;
-    breakdown[category] = (breakdown[category] ?? 0.0) + itemTotal;
-  }
-  return breakdown;
+  final productsAsync = ref.watch(productsStreamProvider);
+  return productsAsync.when(
+    data: (products) {
+      final breakdown = <String, double>{};
+      for (final item in cart.items) {
+        final product = products.cast<Product?>().firstWhere(
+              (p) => p?.id == item.productId,
+              orElse: () => null,
+            );
+        final category = product?.productType ?? 'Other';
+        final itemTotal = item.estimatedPrice * item.quantity;
+        breakdown[category] = (breakdown[category] ?? 0.0) + itemTotal;
+      }
+      return breakdown;
+    },
+    loading: () => {},
+    error: (_, __) => {},
+  );
 });
 
 /// Total estimated fuel cost to visit all retailers in the cart.

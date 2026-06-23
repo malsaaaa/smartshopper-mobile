@@ -416,6 +416,19 @@ body.dark .data-table tr:hover td { background: rgba(255,255,255,.03); }
 }
 .btn-secondary:hover { background: var(--border); }
 
+.btn-danger {
+  background: #c62828;
+  color: #ffffff;
+  border: 1px solid #c62828;
+  border-radius: var(--radius-sm);
+  padding: 10px 20px;
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.btn-danger:hover { opacity: .9; }
+
 .btn-sm {
   background: var(--green-100);
   color: var(--green-700);

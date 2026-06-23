@@ -40,6 +40,20 @@ service cloud.firestore {
          allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
       }
     }
+
+    // 3. Notification Requests
+    match /notification_requests/{requestId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 4. Scraper Jobs and Logs
+    match /scraper_jobs/{jobId} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /scraper_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
 

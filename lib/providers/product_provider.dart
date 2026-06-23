@@ -1,7 +1,6 @@
 /// Product State Management with Firestore
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/services/firestore_product_service.dart';
 
 // ============== SERVICE PROVIDER ==============
@@ -103,26 +102,10 @@ final pricesForProductProvider = Provider.family<List<Price>, int>((ref, product
   return enhancedPricesAsync.when(
     data: (livePrices) {
       final filteredLive = livePrices.where((p) => p.productId == productId).toList();
-      
-      // Merge with MockData to ensure variety for demo
-      final mockPrices = MockData.getPricesForProduct(productId);
-      
-      final Map<int, Price> merged = {};
-      
-      // Add mock prices first as fallback
-      for (final p in mockPrices) {
-        if (p.retailerId != null) merged[p.retailerId!] = p;
-      }
-      
-      // Overwrite with live prices if they exist for the same retailer
-      for (final p in filteredLive) {
-        if (p.retailerId != null) merged[p.retailerId!] = p;
-      }
-      
-      return merged.values.toList()..sort((a, b) => a.price.compareTo(b.price));
+      return filteredLive..sort((a, b) => a.price.compareTo(b.price));
     },
-    loading: () => MockData.getPricesForProduct(productId),
-    error: (_, __) => MockData.getPricesForProduct(productId),
+    loading: () => [],
+    error: (_, __) => [],
   );
 });
 

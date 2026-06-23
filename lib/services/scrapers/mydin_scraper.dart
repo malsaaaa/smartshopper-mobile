@@ -11,7 +11,7 @@ class MyDinScraper extends BaseScraper {
   static const String apiBaseUrl = 'https://myapi.mydin.my/magento';
   static const String retailerName = 'MyDin';
   static const int retailerId = 1;
-  static const int defaultCategoryId = 54;
+  static const int defaultCategoryId = 1222;
   static const int defaultPageSize = 48;
 
   @override
@@ -33,19 +33,52 @@ class MyDinScraper extends BaseScraper {
   }) async {
     try {
       final categoryId = await _resolveCategoryId(category) ?? defaultCategoryId;
-      final page = pageNumber ?? 1;
-      final products = await _fetchProducts(
-        filter: {
-          'category_id': {
-            'eq': categoryId,
+      
+      if (pageNumber != null) {
+        final products = await _fetchProducts(
+          filter: {
+            'category_id': {
+              'eq': categoryId,
+            },
           },
-        },
-        pageSize: defaultPageSize,
-        currentPage: page,
-      );
+          pageSize: defaultPageSize,
+          currentPage: pageNumber,
+        );
+        print('✅ MyDin: Scraped ${products.length} products for page $pageNumber');
+        return products;
+      }
 
-      print('✅ MyDin: Scraped ${products.length} products');
-      return products;
+      // Default to scraping up to 5 pages
+      final allProducts = <(Product, Price)>[];
+      const int maxPages = 5;
+
+      for (int page = 1; page <= maxPages; page++) {
+        print('🔄 MyDin: Scraping page $page...');
+        final products = await _fetchProducts(
+          filter: {
+            'category_id': {
+              'eq': categoryId,
+            },
+          },
+          pageSize: defaultPageSize,
+          currentPage: page,
+        );
+
+        if (products.isEmpty) {
+          print('ℹ️ MyDin: No more products found on page $page.');
+          break;
+        }
+
+        allProducts.addAll(products);
+
+        // Polite delay of 500ms between requests
+        if (page < maxPages) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+
+      print('✅ MyDin: Scraped a total of ${allProducts.length} products across multiple pages');
+      return allProducts;
     } catch (e) {
       print('❌ MyDin scraping error: $e');
       return [];
@@ -80,18 +113,6 @@ class MyDinScraper extends BaseScraper {
   Future<List<String>> getCategories() async {
     return [
       'all-products',
-      'food-beverage',
-      'muslim-fashion',
-      'home-living',
-      'beauty',
-      'stationery',
-      'health',
-      'mom-baby',
-      'baby-kids-fashion',
-      'home-appliances',
-      'pets',
-      'automobiles',
-      'fashion-accessories',
     ];
   }
 
@@ -137,56 +158,7 @@ class MyDinScraper extends BaseScraper {
   }
 
   Future<int?> _resolveCategoryId(String? category) async {
-    if (category == null || category.trim().isEmpty) {
-      return null;
-    }
-
-    final directId = int.tryParse(category.trim());
-    if (directId != null) {
-      return directId;
-    }
-
-    final slug = _normalizeCategorySlug(category);
-    final payload = [
-      {
-        'filters': {
-          'url_key': {
-            'eq': slug,
-          },
-        },
-      },
-      {
-        'categories': 'categories-custom-query',
-        'metadata': {
-          'fields': '''
-items {
-  id
-  name
-  url_key
-}
-''',
-        },
-      },
-      {},
-    ];
-
-    final response = await http.get(
-      Uri.parse('$apiBaseUrl/categories?body=${Uri.encodeComponent(jsonEncode(payload))}'),
-      headers: const {
-        'accept': 'application/json',
-        'user-agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-      },
-    );
-
-    if (response.statusCode != 200) {
-      return null;
-    }
-
-    final items = _extractItems(jsonDecode(response.body));
-    if (items.isEmpty) return null;
-
-    return _extractInt(items.first['id']);
+    return defaultCategoryId;
   }
 
   List<(Product, Price)> _parseProductsResponse(String body) {
@@ -353,15 +325,6 @@ items {
     return input.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
-  String _normalizeCategorySlug(String category) {
-    return category
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'-+'), '-')
-        .replaceAll(RegExp(r'^-+|-+$'), '');
-  }
-
   String _extractProductSlug(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return '';
@@ -414,7 +377,6 @@ items {
   categories {
     name
   }
-  product_labels
 }
 page_info {
   current_page

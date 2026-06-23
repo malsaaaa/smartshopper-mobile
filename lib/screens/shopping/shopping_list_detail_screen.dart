@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smartshopper_mobile/config/app_theme.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/firestore_shopping_list_provider.dart';
+import 'package:smartshopper_mobile/providers/product_provider.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 
 /// Detailed shopping list view with item management
@@ -43,8 +42,9 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
 
   @override
   Widget build(BuildContext context) {
-    // Watch shopping lists from Firestore
+    // Watch shopping lists and prices from Firestore
     final listsAsync = ref.watch(firestoreShoppingListsNotifierProvider);
+    final enhancedPricesAsync = ref.watch(enhancedPricesProvider);
 
     return listsAsync.when(
       data: (lists) {
@@ -93,7 +93,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
 
                 // Items Section
                 if (list.items.isNotEmpty)
-                  _buildItemsList(list)
+                  _buildItemsList(list, enhancedPricesAsync.valueOrNull ?? [])
                 else
                   EmptyState(
                     icon: Icons.shopping_basket_outlined,
@@ -112,7 +112,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
             tooltip: 'Add Item',
             child: const Icon(Icons.add),
           ),
-          bottomNavigationBar: list.items.isNotEmpty ? _buildBottomBar(list) : null,
+          bottomNavigationBar: list.items.isNotEmpty ? _buildBottomBar(list, enhancedPricesAsync.valueOrNull ?? []) : null,
         );
       },
       loading: () => const Scaffold(
@@ -204,7 +204,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
   }
 
   /// Build items list
-  Widget _buildItemsList(ShoppingList list) {
+  Widget _buildItemsList(ShoppingList list, List<Price> prices) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
@@ -230,7 +230,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
             final item = entry.value;
             return Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: _buildItemCard(list, item),
+              child: _buildItemCard(list, item, prices),
             );
           }).toList(),
         ],
@@ -238,9 +238,15 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
     );
   }
 
+  Price? _getBestPrice(int productId, List<Price> prices) {
+    final productPrices = prices.where((p) => p.productId == productId).toList();
+    if (productPrices.isEmpty) return null;
+    return productPrices.reduce((a, b) => a.price < b.price ? a : b);
+  }
+
   /// Build individual item card
-  Widget _buildItemCard(ShoppingList list, ShoppingItem item) {
-    final bestPrice = MockData.getBestPriceForProduct(item.productId ?? 0);
+  Widget _buildItemCard(ShoppingList list, ShoppingItem item, List<Price> prices) {
+    final bestPrice = _getBestPrice(item.productId ?? 0, prices);
     final estimatedCost = item.estimatedPrice * item.quantity;
 
     return BaseCard(
@@ -404,12 +410,12 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
   }
 
   /// Build bottom navigation with recommended retailers
-  Widget _buildBottomBar(ShoppingList list) {
+  Widget _buildBottomBar(ShoppingList list, List<Price> prices) {
     // Group items by retailer
     final retailerTotals = <String, double>{};
 
     for (final item in list.items) {
-      final bestPrice = MockData.getBestPriceForProduct(item.productId ?? 0);
+      final bestPrice = _getBestPrice(item.productId ?? 0, prices);
       final retailerName = bestPrice?.retailer?.name ?? item.retailerName ?? 'Other';
       final totalCost = item.estimatedPrice * item.quantity;
       retailerTotals[retailerName] = (retailerTotals[retailerName] ?? 0.0) + totalCost;

@@ -191,6 +191,7 @@ async function initDashboard() {
     updateUI('products');
   });
   loadNotificationHistory();
+  initScraperListeners();
 
 
   db.collection('retailers').onSnapshot(snapshot => {
@@ -991,6 +992,7 @@ window.submitNotification = submitNotification;
 window.renderNotifications = renderNotifications;
 window.changeRole = changeRole;
 window.deleteUser = deleteUser;
+window.clearDatabase = clearDatabase;
 
 function toggleDarkMode() { document.body.classList.toggle('dark'); }
 
@@ -1006,141 +1008,43 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-async function seedDatabase() {
-  if (!confirm('This will populate your database with initial mock data. Continue?')) return;
+async function clearDatabase() {
+  if (!confirm('⚠️ WARNING: This will permanently delete all products, prices, and retailers from Firestore. Continue?')) return;
 
-  const mockRetailers = [
-    { 
-      id: '1', 
-      name: 'Mydin',   
-      website: 'https://mydin.com.my',  
-      icon: 'https://www.mydin.com.my/img/mydin-logo.png',
-      logoUrl: 'https://www.mydin.com.my/img/mydin-logo.png' 
-    },
-    { 
-      id: '2', 
-      name: 'myAEON2go',   
-      website: 'https://myaeon2go.com',  
-      icon: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png',
-      logoUrl: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png'
-    },
-    { 
-      id: '5', 
-      name: "Lotus's", 
-      website: 'https://www.lotuss.com.my/en', 
-      icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Lotus%27s_Logo.svg/1200px-Lotus%27s_Logo.svg.png',
-      logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Lotus%27s_Logo.svg/1200px-Lotus%27s_Logo.svg.png'
-    },
-  ];
-
-  const mockProducts = [
-    { 
-      id: '1', 
-      name: 'Milo Activ-Go', 
-      desc: 'Chocolate malt drink powder - 400g', 
-      brand: 'Nestlé', 
-      type: 'Drinks',
-      imageUrl: 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=200&auto=format&fit=crop'
-    },
-    { 
-      id: '2', 
-      name: 'Maggi Noodles',  
-      desc: 'Instant noodles - 5 packs',         
-      brand: 'Nestlé', 
-      type: 'Instant Noodles',
-      imageUrl: 'https://images.unsplash.com/photo-1612927329915-406b88a49df2?q=80&w=200&auto=format&fit=crop'
-    },
-    { 
-      id: '3', 
-      name: 'Teh Tarik Mix',  
-      desc: 'Instant tea mix - 300g',            
-      brand: 'Aik Cheong', 
-      type: 'Drinks',
-      imageUrl: 'https://images.unsplash.com/photo-1544787210-2211d403ef8c?q=80&w=200&auto=format&fit=crop'
-    },
-    { 
-      id: '4', 
-      name: 'Beras Wangi',    
-      desc: 'Jasmine rice - 5kg',                
-      brand: 'Faiza',  
-      type: 'Rice & Grains',
-      imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?q=80&w=200&auto=format&fit=crop'
-    },
-    { 
-      id: '6', 
-      name: 'Nescafé Gold',   
-      desc: 'Premium instant coffee - 200g',     
-      brand: 'Nestlé', 
-      type: 'Drinks',
-      imageUrl: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?q=80&w=200&auto=format&fit=crop'
-    },
-    { 
-      id: '7', 
-      name: 'Sunlight Dishwashing Liquid', 
-      desc: 'Dishwashing liquid - 800ml', 
-      brand: 'Unilever', 
-      type: 'Household Cleaning',
-      imageUrl: 'https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=200&auto=format&fit=crop'
-    },
-  ];
-
-  const mockPrices = [
-    { productId: '1', retailerId: '1', price: 12.50 },
-    { productId: '1', retailerId: '2', price: 11.99 },
-    { productId: '1', retailerId: '5', price: 12.30 },
-    { productId: '2', retailerId: '1', price: 4.50 },
-    { productId: '2', retailerId: '2', price: 4.20 },
-    { productId: '2', retailerId: '5', price: 4.60 },
-    { productId: '3', retailerId: '1', price: 8.90 },
-    { productId: '4', retailerId: '1', price: 22.80 },
-    { productId: '6', retailerId: '1', price: 18.50 },
-    { productId: '7', retailerId: '1', price: 6.80 },
-  ];
-
-  showToast('🌱 Seeding database...');
+  showToast('🧹 Clearing database...');
 
   try {
-    const batch = db.batch();
+    const collections = ['products', 'prices', 'retailers'];
+    let totalDeleted = 0;
 
-    // Seed Retailers
-    mockRetailers.forEach(r => {
-      const ref = db.collection('retailers').doc(r.id);
-      batch.set(ref, { 
-        ...r, 
-        createdAt: firebase.firestore.FieldValue.serverTimestamp() 
-      });
-    });
+    for (const colName of collections) {
+      const snapshot = await db.collection(colName).get();
+      if (snapshot.empty) continue;
 
-    // Seed Products
-    mockProducts.forEach(p => {
-      const ref = db.collection('products').doc(p.id);
-      batch.set(ref, { 
-        id: p.id,
-        name: p.name, 
-        description: p.desc, 
-        category: p.brand, 
-        productType: p.type,
-        imageUrl: p.imageUrl,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp() 
-      });
-    });
+      let batch = db.batch();
+      let count = 0;
 
-    // Seed Prices
-    mockPrices.forEach((p, i) => {
-      const id = `price_${i}`;
-      const ref = db.collection('prices').doc(id);
-      batch.set(ref, { 
-        id,
-        ...p, 
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
-      });
-    });
+      for (const doc of snapshot.docs) {
+        batch.delete(doc.ref);
+        count++;
+        totalDeleted++;
 
-    await batch.commit();
-    showToast('✅ Database seeded successfully!');
+        if (count >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+    }
+
+    showToast(`✅ Database cleared! Deleted ${totalDeleted} documents.`);
   } catch (e) {
     console.error(e);
-    showToast('❌ Error seeding database: ' + e.message);
+    showToast('❌ Error clearing database: ' + e.message);
   }
 }
 
@@ -1154,71 +1058,102 @@ const FREQUENCIES = {
   'Weekly':         7 * 24 * 3600,
 };
 
-// Default scheduler state (persisted to localStorage)
-function getScraperJobs() {
-  try {
-    const saved = localStorage.getItem('smartshopper_scraper_jobs');
-    if (saved) return JSON.parse(saved);
-  } catch(e) {}
-  return [
+let scraperJobs = [];
+let scraperLogEntries = [];
+
+async function seedScraperJobs() {
+  const defaultJobs = [
     {
-      id: 'job_mydin',
       retailerName: 'Mydin',
-      targetUrl: 'https://mydin.com.my/grocery',
+      targetUrl: 'https://mydin.my/category/all-products?category_uid=1222',
       frequency: 'Daily',
       scheduledTime: '02:00',
-      lastRun: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+      lastRun: '—',
       status: 'idle',
-      itemsScraped: 47,
+      itemsScraped: 0,
     },
     {
-      id: 'job_myaeon2go',
       retailerName: 'myAEON2go',
       targetUrl: 'https://myaeon2go.com',
       frequency: 'Every 12 Hours',
       scheduledTime: '08:00',
-      lastRun: new Date(Date.now() - 11 * 3600 * 1000).toISOString(),
+      lastRun: '—',
       status: 'idle',
-      itemsScraped: 63,
+      itemsScraped: 0,
     },
     {
-      id: 'job_lotuss',
       retailerName: "Lotus's",
       targetUrl: 'https://www.lotuss.com.my/en',
       frequency: 'Every 6 Hours',
       scheduledTime: '06:00',
-      lastRun: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-      status: 'error',
+      lastRun: '—',
+      status: 'idle',
       itemsScraped: 0,
     },
   ];
+
+  try {
+    const batch = db.batch();
+    defaultJobs.forEach(job => {
+      const id = 'job_' + job.retailerName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const ref = db.collection('scraper_jobs').doc(id);
+      batch.set(ref, {
+        id,
+        ...job,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    console.log('Seeded initial scraper jobs to Firestore');
+  } catch (e) {
+    console.error('Failed to seed scraper jobs:', e);
+  }
 }
 
-function saveScraperJobs(jobs) {
-  localStorage.setItem('smartshopper_scraper_jobs', JSON.stringify(jobs));
-}
+function initScraperListeners() {
+  // Listen to scraper jobs
+  db.collection('scraper_jobs').onSnapshot(snapshot => {
+    if (snapshot.empty) {
+      seedScraperJobs();
+      return;
+    }
+    scraperJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    scraperJobs.sort((a, b) => a.retailerName.localeCompare(b.retailerName));
+    renderScraper();
+  });
 
-let scraperJobs = getScraperJobs();
-let scraperLogEntries = [];
+  // Listen to scraper logs (limit to 50)
+  db.collection('scraper_logs')
+    .orderBy('timestamp', 'desc')
+    .limit(50)
+    .onSnapshot(snapshot => {
+      scraperLogEntries = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const ts = data.timestamp ? data.timestamp.toDate().toLocaleTimeString() : new Date().toLocaleTimeString();
+        return {
+          ts,
+          level: data.level || 'INFO',
+          retailer: data.retailer || 'SYSTEM',
+          message: data.message || '',
+        };
+      });
+      renderLog();
+    });
+}
 
 function nextRunTime(job) {
   const freqSec = FREQUENCIES[job.frequency] || 86400;
   const now = new Date();
 
-  // If a specific time of day is set, find the next wall-clock occurrence
-  // that is at least freqSec seconds after the last run.
   if (job.scheduledTime) {
     const [hh, mm] = job.scheduledTime.split(':').map(Number);
-    // Build candidate = today at scheduledTime
     let candidate = new Date(now);
     candidate.setHours(hh, mm, 0, 0);
 
-    // If the last run is known, the next run must be >= lastRun + freqSec
-    const earliest = job.lastRun
+    const earliest = job.lastRun && job.lastRun !== '—'
       ? new Date(new Date(job.lastRun).getTime() + freqSec * 1000)
       : now;
 
-    // Advance candidate by 1 day until it is >= earliest AND >= now
     while (candidate < earliest || candidate <= now) {
       candidate = new Date(candidate.getTime() + 86400 * 1000);
     }
@@ -1231,8 +1166,7 @@ function nextRunTime(job) {
     return `${label} ${job.scheduledTime} (in ${h > 0 ? h + 'h ' : ''}${m}m)`;
   }
 
-  // Fallback: frequency-only (no specific time)
-  if (!job.lastRun) return 'Not scheduled';
+  if (!job.lastRun || job.lastRun === '—') return 'Not scheduled';
   const next = new Date(new Date(job.lastRun).getTime() + freqSec * 1000);
   if (next <= now) return '⚡ Overdue';
   const diffF = next - now;
@@ -1242,7 +1176,7 @@ function nextRunTime(job) {
 }
 
 function formatLastRun(iso) {
-  if (!iso) return '—';
+  if (!iso || iso === '—') return '—';
   const d = new Date(iso);
   const now = new Date();
   const diff = now - d;
@@ -1257,6 +1191,7 @@ function formatLastRun(iso) {
 function statusBadge(status) {
   const map = {
     idle:    '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700">● Idle</span>',
+    pending: '<span style="background:#fff3e0;color:#e65100;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700;animation:pulse 1.2s infinite">⌛ Pending</span>',
     running: '<span style="background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700;animation:pulse 1s infinite">⚙ Running</span>',
     success: '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700">✓ Success</span>',
     error:   '<span style="background:#ffebee;color:#c62828;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700">✕ Error</span>',
@@ -1268,7 +1203,7 @@ function renderScraper() {
   const tbody = document.getElementById('scraper-tbody');
   if (!tbody) return;
 
-  const running = scraperJobs.filter(j => j.status === 'running').length;
+  const running = scraperJobs.filter(j => j.status === 'running' || j.status === 'pending').length;
   document.getElementById('s-scheduled').textContent = scraperJobs.length;
   document.getElementById('s-running').textContent   = running;
 
@@ -1296,20 +1231,13 @@ function renderScraper() {
       <td style="text-align:center;font-weight:700">${job.itemsScraped > 0 ? job.itemsScraped : '—'}</td>
       <td>
         <button class="action-btn edit" onclick="runScraper('${job.id}')"
-          ${job.status === 'running' ? 'disabled' : ''}>
-          ${job.status === 'running' ? '⏳ Running…' : '▶ Run Now'}
+          ${job.status === 'running' || job.status === 'pending' ? 'disabled' : ''}>
+          ${job.status === 'running' ? '⏳ Running…' : job.status === 'pending' ? '⌛ Pending…' : '▶ Run Now'}
         </button>
       </td>
     </tr>
   `).join('');
 
-  renderLog();
-}
-
-function addLog(level, retailer, message) {
-  const ts = new Date().toLocaleTimeString();
-  scraperLogEntries.unshift({ ts, level, retailer, message });
-  if (scraperLogEntries.length > 200) scraperLogEntries.pop();
   renderLog();
 }
 
@@ -1338,130 +1266,92 @@ function renderLog() {
 }
 
 function filterLog() { renderLog(); }
-function clearLog() { scraperLogEntries = []; renderLog(); }
 
-function updateFrequency(jobId, freq) {
-  const job = scraperJobs.find(j => j.id === jobId);
-  if (!job) return;
-  job.frequency = freq;
-  saveScraperJobs(scraperJobs);
-  addLog('INFO', job.retailerName, `Frequency updated to "${freq}" (next run recalculated)`);
-  renderScraper();
-  showToast(`✅ ${job.retailerName} frequency set to ${freq}`);
+async function clearLog() {
+  if (!confirm('Clear all scraper activity logs from database?')) return;
+  try {
+    const snapshot = await db.collection('scraper_logs').get();
+    const batch = db.batch();
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    showToast('🗑 Logs cleared');
+  } catch (e) {
+    showToast('❌ Error: ' + e.message);
+  }
 }
 
-function updateScheduledTime(jobId, time) {
-  const job = scraperJobs.find(j => j.id === jobId);
-  if (!job) return;
-  job.scheduledTime = time;
-  saveScraperJobs(scraperJobs);
-  addLog('INFO', job.retailerName, `Scheduled run time updated to ${time}`);
-  renderScraper();
-  showToast(`✅ ${job.retailerName} will run daily at ${time}`);
+async function updateFrequency(jobId, freq) {
+  try {
+    await db.collection('scraper_jobs').doc(jobId).update({
+      frequency: freq,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const job = scraperJobs.find(j => j.id === jobId);
+    await db.collection('scraper_logs').add({
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      level: 'INFO',
+      retailer: job?.retailerName || 'SYSTEM',
+      message: `Frequency updated to "${freq}"`
+    });
+    showToast(`✅ ${job?.retailerName} frequency set to ${freq}`);
+  } catch (e) {
+    showToast('❌ Error: ' + e.message);
+  }
+}
+
+async function updateScheduledTime(jobId, time) {
+  try {
+    await db.collection('scraper_jobs').doc(jobId).update({
+      scheduledTime: time,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const job = scraperJobs.find(j => j.id === jobId);
+    await db.collection('scraper_logs').add({
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      level: 'INFO',
+      retailer: job?.retailerName || 'SYSTEM',
+      message: `Scheduled run time updated to ${time}`
+    });
+    showToast(`✅ ${job?.retailerName} scheduled at ${time}`);
+  } catch (e) {
+    showToast('❌ Error: ' + e.message);
+  }
 }
 
 async function runScraper(jobId) {
   const job = scraperJobs.find(j => j.id === jobId);
-  if (!job || job.status === 'running') return;
+  if (!job || job.status === 'running' || job.status === 'pending') return;
 
-  job.status = 'running';
-  renderScraper();
-  document.getElementById('s-running').textContent =
-    scraperJobs.filter(j => j.status === 'running').length;
-
-  addLog('INFO', job.retailerName, `Scraping job started — target: ${job.targetUrl}`);
-  addLog('INFO', job.retailerName, 'Sending HTTP GET request to retailer website…');
-
-  // Simulate scraping steps with realistic delays
-  const delay = ms => new Promise(res => setTimeout(res, ms));
-  const totalItems = Math.floor(Math.random() * 30) + 20;
-  const succeed = Math.random() > 0.15;
-
-  await delay(800);
-  addLog('INFO', job.retailerName, 'Connected. Parsing HTML document structure…');
-  await delay(600);
-  addLog('INFO', job.retailerName, 'Extracting product listing containers…');
-  await delay(500);
-
-  if (!succeed) {
-    addLog('WARN', job.retailerName, 'Rate-limit detected (HTTP 429). Backing off 30s…');
-    await delay(1000);
-    addLog('ERROR', job.retailerName, 'Max retries exceeded. Scraping job FAILED.');
-    job.status = 'error';
-    job.itemsScraped = 0;
-    const failed = parseInt(document.getElementById('s-failed').textContent) + 1;
-    document.getElementById('s-failed').textContent = failed;
-  } else {
-    for (let i = 1; i <= 3; i++) {
-      await delay(400);
-      const batch = Math.ceil(totalItems * i / 3);
-      addLog('INFO', job.retailerName, `Scraped ${batch}/${totalItems} product prices…`);
-    }
-    await delay(300);
-    addLog('INFO', job.retailerName, `Writing ${totalItems} updated prices to Firestore…`);
-    await delay(400);
-
-    // Simulate writing to Firestore (update prices for known products)
-    try {
-      const retailerDoc = retailers.find(r => r.name === job.retailerName);
-      if (retailerDoc && prices.length > 0) {
-        const retailerPrices = prices.filter(p => p.retailerId == retailerDoc.id);
-        if (retailerPrices.length > 0) {
-          const randomPrice = retailerPrices[Math.floor(Math.random() * retailerPrices.length)];
-          const newPrice = parseFloat((randomPrice.price * (0.95 + Math.random() * 0.10)).toFixed(2));
-          await db.collection('prices').doc(randomPrice.id).update({
-            price: newPrice,
-            scrapedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          addLog('SUCCESS', job.retailerName, `Updated price for product ID ${randomPrice.productId} → RM ${newPrice}`);
-        }
-      }
-    } catch(e) {
-      addLog('WARN', job.retailerName, 'Firestore write error (non-fatal): ' + e.message);
-    }
-
-    addLog('SUCCESS', job.retailerName, `Job completed. ${totalItems} prices updated in database.`);
-    job.status = 'success';
-    job.itemsScraped = totalItems;
-    job.lastRun = new Date().toISOString();
-    const completed = parseInt(document.getElementById('s-completed').textContent) + 1;
-    document.getElementById('s-completed').textContent = completed;
+  try {
+    await db.collection('scraper_jobs').doc(jobId).update({
+      status: 'pending',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast(`⏳ Triggered scraper for ${job.retailerName}...`);
+  } catch (e) {
+    showToast('❌ Error starting scraper: ' + e.message);
   }
-
-  saveScraperJobs(scraperJobs);
-  renderScraper();
-  showToast(succeed
-    ? `✅ ${job.retailerName}: scraped ${totalItems} prices`
-    : `❌ ${job.retailerName}: scraping failed`);
 }
 
 async function runAllScrapers() {
   if (!confirm('Run scraping for ALL retailers now?')) return;
-  addLog('INFO', 'SYSTEM', '── Run All triggered by admin ──');
-  for (const job of scraperJobs) {
-    runScraper(job.id);
-    await new Promise(res => setTimeout(res, 500));
+  try {
+    const batch = db.batch();
+    scraperJobs.forEach(job => {
+      if (job.status !== 'running' && job.status !== 'pending') {
+        const ref = db.collection('scraper_jobs').doc(job.id);
+        batch.update(ref, {
+          status: 'pending',
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    });
+    await batch.commit();
+    showToast('⚡ Triggered all scrapers!');
+  } catch (e) {
+    showToast('❌ Error: ' + e.message);
   }
 }
-
-// Initialize log with seed entries
-function initScraperLog() {
-  const now = new Date();
-  const ts = t => new Date(now - t).toLocaleTimeString();
-  scraperLogEntries = [
-    { ts: ts(1800000), level: 'SUCCESS', retailer: 'Mydin',   message: 'Job completed. 47 prices updated in database.' },
-    { ts: ts(1801000), level: 'INFO',    retailer: 'Mydin',   message: 'Writing 47 updated prices to Firestore…' },
-    { ts: ts(1802000), level: 'INFO',    retailer: 'Mydin',   message: 'Scraped 47/47 product prices…' },
-    { ts: ts(3600000), level: 'ERROR',   retailer: "Lotus's", message: 'Max retries exceeded. Scraping job FAILED.' },
-    { ts: ts(3601000), level: 'WARN',    retailer: "Lotus's", message: 'Rate-limit detected (HTTP 429). Backing off 30s…' },
-    { ts: ts(3602000), level: 'INFO',    retailer: "Lotus's", message: 'Sending HTTP GET request to retailer website…' },
-    { ts: ts(7200000), level: 'SUCCESS', retailer: 'myAEON2go',   message: 'Job completed. 63 prices updated in database.' },
-    { ts: ts(7202000), level: 'INFO',    retailer: 'myAEON2go',   message: 'Scraping job started — target: https://myaeon2go.com' },
-  ];
-}
-
-initScraperLog();
 
 // ── Global Handlers ───────────────────────────────────────────────────────────
 
@@ -1488,7 +1378,7 @@ window.openEditRetailerModal = openEditRetailerModal;
 window.saveEditRetailer = saveEditRetailer;
 window.deleteRetailer = deleteRetailer;
 window.toggleAdmin = toggleAdmin;
-window.seedDatabase = seedDatabase;
+window.clearDatabase = clearDatabase;
 window.toggleDarkMode = toggleDarkMode;
 window.toggleCompact = toggleCompact;
 window.showToast = showToast;

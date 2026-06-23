@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
+import 'package:smartshopper_mobile/providers/product_provider.dart';
 
 // ─── Data classes ────────────────────────────────────────────────────────────
 
@@ -49,108 +49,121 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
     final items = cart?.items ?? [];
     if (items.isEmpty) return const SizedBox.shrink();
 
-    // ── Compute per-item analysis ──────────────────────────────────────────
-    final analyses = <_ItemAnalysis>[];
-    for (final item in items) {
-      if (item.productId == null) continue;
-      final prices = MockData.getPricesForProduct(item.productId!);
-      if (prices.isEmpty) continue;
+    final enhancedPricesAsync = ref.watch(enhancedPricesProvider);
+    final retailersAsync = ref.watch(retailersStreamProvider);
 
-      final priceByRetailer = <String, double>{};
-      for (final p in prices) {
-        final name = p.retailer?.name ?? 'Unknown';
-        priceByRetailer[name] = p.price;
-      }
+    return enhancedPricesAsync.when(
+      data: (allPrices) => retailersAsync.when(
+        data: (allRetailers) {
+          // ── Compute per-item analysis ──────────────────────────────────────────
+          final analyses = <_ItemAnalysis>[];
+          for (final item in items) {
+            if (item.productId == null) continue;
+            final prices = allPrices.where((p) => p.productId == item.productId).toList();
+            if (prices.isEmpty) continue;
 
-      final cheapest = prices.reduce((a, b) => a.price < b.price ? a : b);
-      analyses.add(_ItemAnalysis(
-        cartItem: item,
-        priceByRetailer: priceByRetailer,
-        cheapestRetailer: cheapest.retailer?.name ?? 'Unknown',
-        cheapestPrice: cheapest.price,
-      ));
-    }
-    if (analyses.isEmpty) return const SizedBox.shrink();
+            final priceByRetailer = <String, double>{};
+            for (final p in prices) {
+              final name = p.retailer?.name ?? 'Unknown';
+              priceByRetailer[name] = p.price;
+            }
 
-    // ── Compute retailer totals (for all items that retailer stocks) ───────
-    final Map<String, _RetailerSummary> summaries = {};
-    for (final a in analyses) {
-      for (final entry in a.priceByRetailer.entries) {
-        final s = summaries.putIfAbsent(
-            entry.key, () => _RetailerSummary(
-              name: entry.key,
-              logoUrl: MockData.retailers.firstWhere((r) => r.name == entry.key, orElse: () => MockData.retailers.first).logoUrl,
+            final cheapest = prices.reduce((a, b) => a.price < b.price ? a : b);
+            analyses.add(_ItemAnalysis(
+              cartItem: item,
+              priceByRetailer: priceByRetailer,
+              cheapestRetailer: cheapest.retailer?.name ?? 'Unknown',
+              cheapestPrice: cheapest.price,
             ));
-        s.total += entry.value * a.cartItem.quantity;
-        s.itemCount++;
-      }
-    }
-    final sorted = summaries.values.toList()
-      ..sort((a, b) => a.total.compareTo(b.total));
-    if (sorted.isEmpty) return const SizedBox.shrink();
+          }
+          if (analyses.isEmpty) return const SizedBox.shrink();
 
-    final best = sorted.first;
-    final worst = sorted.last;
-    final maxSavings = worst.total - best.total;
+          // ── Compute retailer totals (for all items that retailer stocks) ───────
+          final Map<String, _RetailerSummary> summaries = {};
+          for (final a in analyses) {
+            for (final entry in a.priceByRetailer.entries) {
+              final s = summaries.putIfAbsent(
+                  entry.key, () => _RetailerSummary(
+                    name: entry.key,
+                    logoUrl: allRetailers.firstWhere((r) => r.name == entry.key, orElse: () => allRetailers.first).logoUrl,
+                  ));
+              s.total += entry.value * a.cartItem.quantity;
+              s.itemCount++;
+            }
+          }
+          final sorted = summaries.values.toList()
+            ..sort((a, b) => a.total.compareTo(b.total));
+          if (sorted.isEmpty) return const SizedBox.shrink();
 
-    // Alternative total = cheapest price per item, mixed retailers
-    final alternativeTotal = analyses.fold<double>(
-        0, (s, a) => s + a.cheapestPrice * a.cartItem.quantity);
+          final best = sorted.first;
+          final worst = sorted.last;
+          final maxSavings = worst.total - best.total;
 
-    // Default selected retailer
-    _selectedRetailer ??= best.name;
-    final selectedSummary =
-        summaries[_selectedRetailer] ?? summaries[best.name]!;
+          // Alternative total = cheapest price per item, mixed retailers
+          final alternativeTotal = analyses.fold<double>(
+              0, (s, a) => s + a.cheapestPrice * a.cartItem.quantity);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: AppSpacing.xxl),
-        // ── Header ───────────────────────────────────────────────────────
-        Row(children: [
-          const Text('💰', style: TextStyle(fontSize: 22)),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text('Smart Shopping Recommendations',
-                style: AppTypography.headline2),
-          ),
-        ]),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Compare total cost of your entire shopping list across retailers',
-          style:
-              AppTypography.bodySmall.copyWith(color: AppTheme.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.lg),
+          // Default selected retailer
+          _selectedRetailer ??= best.name;
+          final selectedSummary =
+              summaries[_selectedRetailer] ?? summaries[best.name]!;
 
-        // ── Retailer comparison cards ─────────────────────────────────────
-        _RetailerCards(
-          sorted: sorted,
-          best: best,
-          selected: _selectedRetailer!,
-          onSelect: (name) => setState(() => _selectedRetailer = name),
-        ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: AppSpacing.xxl),
+              // ── Header ───────────────────────────────────────────────────────
+              Row(children: [
+                const Text('💰', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text('Smart Shopping Recommendations',
+                      style: AppTypography.headline2),
+                ),
+              ]),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Compare total cost of your entire shopping list across retailers',
+                style:
+                    AppTypography.bodySmall.copyWith(color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-        // ── Maximum savings banner ────────────────────────────────────────
-        if (maxSavings > 0.005) ...[
-          const SizedBox(height: AppSpacing.lg),
-          _SavingsBanner(
-            savings: maxSavings,
-            bestName: best.name,
-            worstName: worst.name,
-          ),
-        ],
+              // ── Retailer comparison cards ─────────────────────────────────────
+              _RetailerCards(
+                sorted: sorted,
+                best: best,
+                selected: _selectedRetailer!,
+                onSelect: (name) => setState(() => _selectedRetailer = name),
+              ),
 
-        // ── Item breakdown table ──────────────────────────────────────────
-        const SizedBox(height: AppSpacing.lg),
-        _ItemBreakdownTable(
-          analyses: analyses,
-          retailerName: _selectedRetailer!,
-          selectedTotal: selectedSummary.total,
-          alternativeTotal: alternativeTotal,
-        ),
-        const SizedBox(height: AppSpacing.xxl),
-      ],
+              // ── Maximum savings banner ────────────────────────────────────────
+              if (maxSavings > 0.005) ...[
+                const SizedBox(height: AppSpacing.lg),
+                _SavingsBanner(
+                  savings: maxSavings,
+                  bestName: best.name,
+                  worstName: worst.name,
+                ),
+              ],
+
+              // ── Item breakdown table ──────────────────────────────────────────
+              const SizedBox(height: AppSpacing.lg),
+              _ItemBreakdownTable(
+                analyses: analyses,
+                retailerName: _selectedRetailer!,
+                selectedTotal: selectedSummary.total,
+                alternativeTotal: alternativeTotal,
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+            ],
+          );
+        },
+        loading: () => const SizedBox.shrink(),
+        error: (_, __) => const SizedBox.shrink(),
+      ),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

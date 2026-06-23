@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
+import 'package:smartshopper_mobile/providers/product_provider.dart';
 
 /// Bottom sheet: choose retailer, set quantity, then tap "Add to Cart".
 /// No list selection needed — goes straight to the user's single cart.
@@ -41,35 +41,20 @@ class AddToListSheet extends ConsumerStatefulWidget {
 
 class _AddToListSheetState extends ConsumerState<AddToListSheet> {
   int _quantity = 1;
-  late List<Price> _allPrices;
-  late Price? _selectedPrice;
+  Price? _selectedPrice;
   bool _isAdding = false;
 
   @override
   void initState() {
     super.initState();
-    _allPrices = MockData.getPricesForProduct(widget.product.id)
-      ..sort((a, b) => a.price.compareTo(b.price)); // cheapest first
-
-    if (widget.selectedPrice != null) {
-      _selectedPrice = _allPrices.firstWhere(
-        (p) => p.retailerId == widget.selectedPrice!.retailerId,
-        orElse: () => widget.selectedPrice!,
-      );
-    } else {
-      _selectedPrice = _allPrices.isNotEmpty ? _allPrices.first : null;
-    }
   }
 
-  double get _unitPrice => _selectedPrice?.price ?? 0.0;
-  double get _totalPrice => _unitPrice * _quantity;
-
-  Future<void> _addToCart() async {
+  Future<void> _addToCart(Price? selectedPrice) async {
     setState(() => _isAdding = true);
     try {
       await ref.read(cartNotifierProvider.notifier).addToCart(
             widget.product,
-            selectedPrice: _selectedPrice,
+            selectedPrice: selectedPrice,
             quantity: _quantity,
           );
       if (mounted) {
@@ -77,7 +62,7 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
             '${widget.product.name} ×$_quantity added to cart'
-            '${_selectedPrice?.retailer?.name != null ? ' from ${_selectedPrice!.retailer!.name}' : ''}',
+            '${selectedPrice?.retailer?.name != null ? ' from ${selectedPrice?.retailer?.name}' : ''}',
           ),
           backgroundColor: AppTheme.secondary,
         ));
@@ -95,6 +80,17 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final allPrices = ref.watch(pricesForProductProvider(widget.product.id));
+    final selectedPrice = _selectedPrice ?? (widget.selectedPrice != null
+        ? (allPrices.firstWhere(
+            (p) => p.retailerId == widget.selectedPrice!.retailerId,
+            orElse: () => widget.selectedPrice!,
+          ))
+        : (allPrices.isNotEmpty ? allPrices.first : null));
+
+    final unitPrice = selectedPrice?.price ?? 0.0;
+    final totalPrice = unitPrice * _quantity;
+
     return Padding(
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
@@ -137,12 +133,12 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
                     ],
                   ),
                 ),
-                if (_unitPrice > 0)
+                if (unitPrice > 0)
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 180),
                     child: _PriceBadge(
-                        key: ValueKey(_totalPrice),
-                        price: _totalPrice,
+                        key: ValueKey(totalPrice),
+                        price: totalPrice,
                         qty: _quantity),
                   ),
               ],
@@ -160,7 +156,7 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
                     .copyWith(color: AppTheme.textTertiary)),
             const SizedBox(height: AppSpacing.md),
 
-            if (_allPrices.isEmpty)
+            if (allPrices.isEmpty)
               Padding(
                 padding:
                     const EdgeInsets.symmetric(vertical: AppSpacing.lg),
@@ -174,14 +170,14 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const ClampingScrollPhysics(),
-                  itemCount: _allPrices.length,
+                  itemCount: allPrices.length,
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: AppSpacing.sm),
                   itemBuilder: (_, i) {
-                    final price = _allPrices[i];
+                    final price = allPrices[i];
                     final isBest = i == 0;
                     final isSelected =
-                        _selectedPrice?.retailerId == price.retailerId;
+                        selectedPrice?.retailerId == price.retailerId;
                     return _RetailerTile(
                       price: price,
                       isBest: isBest,
@@ -221,7 +217,7 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
                     onTap: () => setState(() => _quantity++)),
                 const SizedBox(width: AppSpacing.lg),
                 Text(
-                  '= RM${_totalPrice.toStringAsFixed(2)}',
+                  '= RM${totalPrice.toStringAsFixed(2)}',
                   style: AppTypography.labelLarge
                       .copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold),
                 ),
@@ -234,7 +230,7 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _isAdding ? null : _addToCart,
+                onPressed: _isAdding ? null : () => _addToCart(selectedPrice),
                 icon: _isAdding
                     ? const SizedBox(
                         width: 18,
@@ -246,7 +242,7 @@ class _AddToListSheetState extends ConsumerState<AddToListSheet> {
                   _isAdding
                       ? 'Adding...'
                       : 'Add $_quantity × ${widget.product.name}'
-                          '${_selectedPrice?.retailer?.name != null ? ' from ${_selectedPrice!.retailer!.name}' : ''}',
+                          '${selectedPrice?.retailer?.name != null ? ' from ${selectedPrice?.retailer?.name}' : ''}',
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.primary,
