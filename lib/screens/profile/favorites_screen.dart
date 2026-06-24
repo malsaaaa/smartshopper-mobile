@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
-import 'package:smartshopper_mobile/providers/product_provider.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 
@@ -34,7 +33,16 @@ class FavoritesScreen extends ConsumerWidget {
           final product = ref.watch(productByIdProvider(productId));
 
           if (product == null) {
-            return BaseCard(child: ListTile(title: Text('Product #$productId')));
+            return BaseCard(
+              child: ListTile(
+                title: Text('Product #$productId (Unavailable)'),
+                subtitle: const Text('This product is no longer available'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline, color: AppTheme.textSecondary),
+                  onPressed: () => ref.read(favoritesProvider.notifier).toggleFavorite(productId),
+                ),
+              ),
+            );
           }
 
           return BaseCard(
@@ -50,7 +58,7 @@ class FavoritesScreen extends ConsumerWidget {
                 child: SmartImage(imageUrl: product.imageUrl),
               ),
               title: Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-              subtitle: Text(product.category ?? ''),
+              subtitle: Text(product.category),
               trailing: IconButton(
                 icon: const Icon(Icons.favorite, color: AppTheme.error),
                 onPressed: () => ref.read(favoritesProvider.notifier).toggleFavorite(productId),

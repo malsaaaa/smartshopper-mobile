@@ -1,3 +1,5 @@
+import 'package:smartshopper_mobile/utils/product_utils.dart';
+
 /// Product model representing an item to be price-compared
 class Product {
   final int id;
@@ -22,8 +24,9 @@ class Product {
 
   /// Factory constructor for creating from JSON
   factory Product.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
     return Product(
-      id: json['id'] is String ? int.tryParse(json['id']) ?? 0 : (json['id'] as int? ?? 0),
+      id: rawId is int ? rawId : parseStableId(rawId?.toString() ?? ''),
       name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? '',
@@ -41,14 +44,14 @@ class Product {
   /// Factory constructor for creating from Firestore
   factory Product.fromFirestore(Map<String, dynamic> json, String docId) {
     return Product(
-      id: int.tryParse(docId) ?? 0,
+      id: parseStableId(docId),
       name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? '',
       productType: json['productType'] as String? ?? '',
       imageUrl: json['imageUrl'] as String? ?? '',
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      updatedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: parseDateTime(json['createdAt']),
+      updatedAt: parseDateTime(json['updatedAt']),
     );
   }
 

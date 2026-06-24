@@ -7,12 +7,12 @@ import '../data/models/retailer.dart';
 /// LocationService handles distance and fuel cost calculations
 class LocationService {
   // Constants for Malaysia (approximate)
-  static const double fuelPricePerLiter = 2.05; // RM (RON 95)
+  static const double fuelPricePerLiter = 3.47; // RM (RON 95)
   static const double averageFuelEfficiency = 12.0; // km per liter
 
-  // Fallback Location: Taylor's University Lakeside Campus
-  static const double fallbackLat = 3.0645;
-  static const double fallbackLng = 101.6166;
+  // Fallback Location: Melaka (biased to user's local testing area)
+  static const double fallbackLat = 2.2365657630638127;
+  static const double fallbackLng = 102.28151321103672;
 
   /// Automatically find store coordinates using OpenStreetMap (Free)
   /// Uses [userLat] and [userLon] to bias results to the nearest branch

@@ -1,3 +1,5 @@
+import 'package:smartshopper_mobile/utils/product_utils.dart';
+
 /// ShoppingItem model representing an item in a shopping list
 class ShoppingItem {
   final String? documentId; // Firestore document ID
@@ -38,11 +40,14 @@ class ShoppingItem {
     final retailerName = (rawRetailerName != null && rawRetailerName.toLowerCase().contains('giant')) ? 'myAEON2go' : rawRetailerName;
     final rawLogoUrl = json['retailerLogoUrl'] as String?;
     final retailerLogoUrl = (rawLogoUrl != null && rawLogoUrl.toLowerCase().contains('giant')) ? '' : rawLogoUrl;
+    final rawProductId = json['productId'];
     return ShoppingItem(
       documentId: json['documentId'] as String?,
       id: json['id'] as int?,
       shoppingListId: json['shoppingListId'] as String?,
-      productId: json['productId'] as int?,
+      productId: rawProductId is int 
+          ? rawProductId 
+          : (rawProductId != null ? parseStableId(rawProductId.toString()) : null),
       name: json['name'] as String,
       quantity: json['quantity'] as int,
       estimatedPrice: (json['estimatedPrice'] as num).toDouble(),
@@ -66,9 +71,12 @@ class ShoppingItem {
     final retailerName = (rawRetailerName != null && rawRetailerName.toLowerCase().contains('giant')) ? 'myAEON2go' : rawRetailerName;
     final rawLogoUrl = json['retailerLogoUrl'] as String?;
     final retailerLogoUrl = (rawLogoUrl != null && rawLogoUrl.toLowerCase().contains('giant')) ? '' : rawLogoUrl;
+    final rawProductId = json['productId'];
     return ShoppingItem(
       documentId: documentId,
-      productId: json['productId'] as int?,
+      productId: rawProductId is int 
+          ? rawProductId 
+          : (rawProductId != null ? parseStableId(rawProductId.toString()) : null),
       name: json['name'] as String,
       quantity: json['quantity'] as int? ?? 1,
       estimatedPrice: (json['estimatedPrice'] as num?)?.toDouble() ?? 0.0,
@@ -77,8 +85,8 @@ class ShoppingItem {
       retailerName: retailerName,
       retailerLogoUrl: retailerLogoUrl,
       imageUrl: json['imageUrl'] as String?,
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      updatedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: parseDateTime(json['createdAt']),
+      updatedAt: parseDateTime(json['updatedAt']),
     );
   }
 
@@ -243,8 +251,8 @@ class ShoppingList {
       description: json['description'] as String?,
       budget: json['budget'] != null ? (json['budget'] as num).toDouble() : null,
       isActive: json['isActive'] as bool? ?? true,
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      updatedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: parseDateTime(json['createdAt']),
+      updatedAt: parseDateTime(json['updatedAt']),
       items: [],
     );
   }

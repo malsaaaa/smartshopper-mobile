@@ -1,3 +1,4 @@
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 import 'product.dart';
 import 'retailer.dart';
 
@@ -29,10 +30,13 @@ class Price {
 
   /// Factory constructor for creating from JSON
   factory Price.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+    final rawProductId = json['productId'];
+    final rawRetailerId = json['retailerId'];
     return Price(
-      id: json['id'] is String ? int.tryParse(json['id']) ?? 0 : (json['id'] as int? ?? 0),
-      productId: json['productId'] is String ? int.tryParse(json['productId']) ?? 0 : (json['productId'] as int? ?? 0),
-      retailerId: json['retailerId'] is String ? int.tryParse(json['retailerId']) ?? 0 : (json['retailerId'] as int? ?? 0),
+      id: rawId is int ? rawId : parseStableId(rawId?.toString() ?? ''),
+      productId: rawProductId is int ? rawProductId : parseStableId(rawProductId?.toString() ?? ''),
+      retailerId: rawRetailerId is int ? rawRetailerId : (int.tryParse(rawRetailerId?.toString() ?? '') ?? 0),
       price: (json['price'] as num? ?? 0).toDouble(),
       productUrl: json['productUrl'] as String? ?? '',
       scrapedAt: json['scrapedAt'] is String ? DateTime.parse(json['scrapedAt']) : (json['scrapedAt'] as dynamic),
@@ -50,14 +54,14 @@ class Price {
   /// Factory constructor for creating from Firestore
   factory Price.fromFirestore(Map<String, dynamic> json, String docId) {
     return Price(
-      id: 0, // Not strictly used for display
-      productId: int.tryParse(json['productId']?.toString() ?? '') ?? 0,
+      id: parseStableId(docId),
+      productId: parseStableId(json['productId']?.toString() ?? ''),
       retailerId: int.tryParse(json['retailerId']?.toString() ?? '') ?? 0,
       price: (json['price'] as num? ?? 0).toDouble(),
       productUrl: json['productUrl'] as String? ?? '',
-      scrapedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(), // Fallback
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      updatedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      scrapedAt: parseDateTime(json['scrapedAt'] ?? json['updatedAt']),
+      createdAt: parseDateTime(json['createdAt']),
+      updatedAt: parseDateTime(json['updatedAt']),
     );
   }
 

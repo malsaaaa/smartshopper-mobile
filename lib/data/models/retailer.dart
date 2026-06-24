@@ -1,3 +1,5 @@
+import 'package:smartshopper_mobile/utils/product_utils.dart';
+
 /// Retailer model representing a shopping retailer/store
 class Retailer {
   final int id;
@@ -55,8 +57,8 @@ class Retailer {
       website: json['website'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      updatedAt: (json['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: parseDateTime(json['createdAt']),
+      updatedAt: parseDateTime(json['updatedAt']),
     );
   }
 

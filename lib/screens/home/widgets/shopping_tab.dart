@@ -259,70 +259,91 @@ class _CartItemRow extends ConsumerWidget {
           children: [
             const SizedBox(width: AppSpacing.sm),
 
-            // Product image
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryLight,
-                borderRadius: BorderRadius.circular(AppRadius.md),
+            // Opaque, clickable area wrapping product image and details
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (item.productId != null) {
+                    Navigator.pushNamed(
+                      context,
+                      '/product-details',
+                      arguments: item.productId,
+                    );
+                  }
+                },
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Product image
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryLight,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                          ? SmartImage(
+                              imageUrl: item.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorWidget: const Icon(Icons.shopping_bag_outlined,
+                                  color: AppTheme.primary, size: 28),
+                            )
+                          : const Icon(Icons.shopping_bag_outlined,
+                              color: AppTheme.primary, size: 28),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+
+                    // Name + price
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: AppTypography.labelLarge,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'RM${item.estimatedPrice.toStringAsFixed(2)} each',
+                            style: AppTypography.bodySmall
+                                .copyWith(color: AppTheme.textSecondary),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'RM${(item.estimatedPrice * item.quantity).toStringAsFixed(2)}',
+                            style: AppTypography.labelLarge.copyWith(
+                              color: AppTheme.accentOrange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.update_rounded,
+                                  size: 10, color: AppTheme.textTertiary),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Price updated ${_formatScraped(item.updatedAt)}',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppTheme.textTertiary,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                  ? SmartImage(
-                      imageUrl: item.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorWidget: const Icon(Icons.shopping_bag_outlined,
-                          color: AppTheme.primary, size: 28),
-                    )
-                  : const Icon(Icons.shopping_bag_outlined,
-                      color: AppTheme.primary, size: 28),
             ),
             const SizedBox(width: AppSpacing.md),
-
-            // Name + price
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    style: AppTypography.labelLarge,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'RM${item.estimatedPrice.toStringAsFixed(2)} each',
-                    style: AppTypography.bodySmall
-                        .copyWith(color: AppTheme.textSecondary),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'RM${(item.estimatedPrice * item.quantity).toStringAsFixed(2)}',
-                    style: AppTypography.labelLarge.copyWith(
-                      color: AppTheme.accentOrange,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      const Icon(Icons.update_rounded,
-                          size: 10, color: AppTheme.textTertiary),
-                      const SizedBox(width: 3),
-                      Text(
-                        'Price updated ${_formatScraped(item.updatedAt)}',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppTheme.textTertiary,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
 
             // Quantity stepper
             Column(

@@ -5,7 +5,6 @@ import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/add_to_list_sheet.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
-import 'package:smartshopper_mobile/services/location_service.dart';
 
 // ─── Brand category metadata ───────────────────────────────────────────────────
 
@@ -93,7 +92,22 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
     return productsAsync.when(
       data: (allProducts) {
-        final allBrands = allProducts.map((p) => p.category).toSet().toList()..sort();
+        final excludedBrands = {
+          'CAROTINO',
+          'CPALIF',
+          'CP4_ALIF',
+          'ECOSAFA',
+          'LOTUSS',
+          'LOTUS\'S',
+          'LOTUS',
+          'SAFOLI'
+        };
+        final allBrands = allProducts
+            .map((p) => p.category)
+            .toSet()
+            .where((brand) => !excludedBrands.contains(brand.toUpperCase().trim()))
+            .toList()
+          ..sort();
         final allTypes = allProducts.map((p) => p.productType).toSet().toList()..sort();
 
         return Column(
@@ -373,11 +387,11 @@ class _BrandCard extends ConsumerWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                child: product.imageUrl != null
-                    ? (product.imageUrl!.startsWith('assets/')
-                        ? Image.asset(product.imageUrl!, fit: BoxFit.contain)
+                child: product.imageUrl.isNotEmpty
+                    ? (product.imageUrl.startsWith('assets/')
+                        ? Image.asset(product.imageUrl, fit: BoxFit.contain)
                         : Image.network(
-                            product.imageUrl!,
+                            product.imageUrl,
                             fit: BoxFit.contain,
                             errorBuilder: (ctx, _, __) => const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
                           ))

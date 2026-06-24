@@ -216,3 +216,41 @@ String extractCategory(String productName) {
   return 'Food'; // Fallback
 }
 
+/// Parses a document ID or string into a stable 32-bit positive integer.
+/// If the string is already a valid integer, it is parsed directly.
+/// Otherwise, it uses a stable polynomial rolling hash (DJB2) to generate a
+/// consistent positive 31-bit integer.
+int parseStableId(String idStr) {
+  final clean = idStr.trim();
+  final parsed = int.tryParse(clean);
+  if (parsed != null) return parsed;
+  
+  int hash = 5381;
+  for (int i = 0; i < clean.length; i++) {
+    hash = ((hash << 5) + hash) + clean.codeUnitAt(i);
+    hash = hash & 0x7FFFFFFF; // Keep it as a positive 31-bit integer
+  }
+  return hash;
+}
+
+/// Safely parses a dynamic field into a DateTime.
+/// Supports both Firestore Timestamp (via dynamic toDate() call) and ISO 8601 strings.
+DateTime parseDateTime(dynamic val) {
+  if (val == null) return DateTime.now();
+  if (val is DateTime) return val;
+  if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+  
+  // Try calling toDate() dynamically (for Firestore Timestamp)
+  try {
+    return val.toDate();
+  } catch (_) {
+    try {
+      return DateTime.tryParse(val.toString()) ?? DateTime.now();
+    } catch (_) {}
+  }
+  
+  return DateTime.now();
+}
+
+
+
