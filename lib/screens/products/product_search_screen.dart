@@ -41,7 +41,7 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
       return;
     }
 
-    final allProducts = ref.read(productsStreamProvider).valueOrNull ?? [];
+    final allProducts = ref.read(groupedProductsProvider).valueOrNull ?? [];
     List<Product> results = allProducts
         .where((p) =>
             p.name.toLowerCase().contains(query.toLowerCase()) ||
@@ -136,7 +136,7 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   Widget _buildSearchResults() {
     if (!_hasSearched) {
       // Show recommended / popular products when user hasn't searched yet
-      final allProducts = ref.watch(productsStreamProvider).valueOrNull ?? [];
+      final allProducts = ref.watch(groupedProductsProvider).valueOrNull ?? [];
       final recommendations = allProducts.take(6).toList();
       return ListView.builder(
         padding: const EdgeInsets.all(AppSpacing.lg),

@@ -14,19 +14,7 @@ let users = [];
 let notificationHistory = [];
 
 function normalizeRetailerRecord(retailer) {
-  const name = (retailer?.name || '').trim();
-  const normalizedName = name.toLowerCase();
-
-  if (normalizedName === 'giant') {
-    return {
-      ...retailer,
-      name: 'myAEON2go',
-      website: 'https://www.lotuss.com.my/en',
-      icon: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png',
-      logoUrl: 'https://thumbor.asia-southeast1.aeon-my-prod.e.spresso.com/unsafe/web2-assets.myboxed.com.my/public/images/32x25_optimized.png',
-    };
-  }
-
+  // Pass through as-is; normalization was previously used during migration.
   return retailer;
 }
 
@@ -219,7 +207,6 @@ function updateUI(type) {
 
   if (activePage === 'dashboard') renderDashboard();
   if (activePage === 'products') renderProducts();
-  if (activePage === 'prices') renderPrices();
   if (activePage === 'retailers') renderRetailers();
   if (activePage === 'users') renderUsers();
   if (activePage === 'analytics') renderAnalytics();
@@ -234,7 +221,7 @@ function showPage(page, el) {
   if (el) el.classList.add('active');
   
   document.getElementById('page-title').textContent =
-    { dashboard:'Dashboard', notifications:'Notifications', products:'Products', prices:'Prices',
+    { dashboard:'Dashboard', notifications:'Notifications', products:'Products',
       retailers:'Retailers', users:'Users', analytics:'Analytics',
       scraper:'Scraper', settings:'Settings' }[page] || page;
 
@@ -242,7 +229,6 @@ function showPage(page, el) {
   const refreshMap = {
     notifications: renderNotifications,
     products:  renderProducts,
-    prices:    renderPrices,
     retailers: renderRetailers,
     users:     renderUsers,
     analytics: renderAnalytics,
@@ -305,10 +291,230 @@ function renderDashboard() {
 
 // ── Render: Products ──────────────────────────────────────────────────────────
 
+let productSortCol = '';
+let productSortDir = 'asc'; // 'asc' or 'desc'
+let selectedProductIds = new Set();
+
+function sortProducts(column) {
+  if (productSortCol === column) {
+    productSortDir = productSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    productSortCol = column;
+    productSortDir = 'asc';
+  }
+  
+  renderProducts();
+}
+
+function updateSortIcons() {
+  const cols = ['id', 'name', 'retailerName', 'category', 'productType', 'price', 'updatedAt'];
+  cols.forEach(col => {
+    const el = document.getElementById('sort-icon-' + col);
+    if (!el) return;
+    if (col === productSortCol) {
+      el.textContent = productSortDir === 'asc' ? ' ▲' : ' ▼';
+      el.style.opacity = '1';
+    } else {
+      el.textContent = ' ↕';
+      el.style.opacity = '0.4';
+    }
+  });
+}
+
+function toggleProductSelection(productId, isSelected) {
+  if (isSelected) {
+    selectedProductIds.add(productId.toString());
+  } else {
+    selectedProductIds.delete(productId.toString());
+  }
+  updateDeleteSelectedButton();
+}
+
+function toggleAllProductSelection(isSelected) {
+  const checkboxes = document.querySelectorAll('.product-select');
+  checkboxes.forEach(cb => {
+    const row = cb.closest('tr');
+    // Only select/deselect if the row is visible
+    if (row && row.style.display !== 'none') {
+      cb.checked = isSelected;
+      const id = cb.dataset.id;
+      if (isSelected) {
+        selectedProductIds.add(id.toString());
+      } else {
+        selectedProductIds.delete(id.toString());
+      }
+    }
+  });
+  updateDeleteSelectedButton();
+}
+
+function updateDeleteSelectedButton() {
+  const btn = document.getElementById('delete-selected-btn');
+  if (!btn) return;
+  
+  const count = selectedProductIds.size;
+  if (count > 0) {
+    btn.style.display = 'inline-flex';
+    btn.textContent = `🗑 Delete Selected (${count})`;
+  } else {
+    btn.style.display = 'none';
+  }
+  
+  // Update "Select All" checkbox state for visible rows only
+  const selectAllCb = document.getElementById('select-all-products');
+  if (selectAllCb) {
+    const checkboxes = document.querySelectorAll('.product-select');
+    const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
+      const row = cb.closest('tr');
+      return row && row.style.display !== 'none';
+    });
+    
+    if (visibleCheckboxes.length > 0) {
+      const allChecked = visibleCheckboxes.every(cb => cb.checked);
+      selectAllCb.checked = allChecked;
+    } else {
+      selectAllCb.checked = false;
+    }
+  }
+}
+
+async function deleteSelectedProducts() {
+  const count = selectedProductIds.size;
+  if (count === 0) return;
+  
+  if (!confirm(`Are you sure you want to permanently delete the ${count} selected price entries?`)) return;
+  
+  showToast(`🧹 Deleting ${count} prices...`);
+  
+  try {
+    let batch = db.batch();
+    let batchCount = 0;
+    
+    for (const id of selectedProductIds) {
+      const ref = db.collection('prices').doc(id);
+      batch.delete(ref);
+      batchCount++;
+      
+      if (batchCount >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        batchCount = 0;
+      }
+    }
+    
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    
+    showToast(`✅ Successfully deleted ${count} price entries!`);
+    selectedProductIds.clear();
+    updateDeleteSelectedButton();
+  } catch (e) {
+    console.error(e);
+    showToast('❌ Error deleting price entries: ' + e.message);
+  }
+}
+
 function renderProducts() {
   const tbody = document.getElementById('products-tbody');
-  tbody.innerHTML = products.map(p => `
+  if (!tbody) return;
+
+  // Clean up selected IDs that are no longer in the prices list
+  const currentPriceIds = new Set(prices.map(p => p.id.toString()));
+  for (const id of selectedProductIds) {
+    if (!currentPriceIds.has(id)) {
+      selectedProductIds.delete(id);
+    }
+  }
+
+  // Update the product select in add price modal
+  const prodSelect = document.getElementById('new-price-product');
+  if (prodSelect) {
+    prodSelect.innerHTML = products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
+
+  // Update the retailer select in add price modal
+  const retSelect = document.getElementById('new-price-retailer');
+  if (retSelect) {
+    retSelect.innerHTML = retailers.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  }
+
+  // Update sort icons in the headers
+  updateSortIcons();
+
+  // Create enriched price entries
+  let enrichedPrices = prices.map(price => {
+    const product = products.find(p => p.id.toString() === price.productId.toString());
+    const retailer = retailers.find(r => r.id.toString() === price.retailerId.toString());
+    return {
+      id: price.id,
+      productId: price.productId,
+      retailerId: price.retailerId,
+      retailerName: retailer ? retailer.name : 'Unknown',
+      price: price.price,
+      productUrl: price.productUrl,
+      updatedAt: price.updatedAt,
+      // Product details
+      name: product ? product.name : 'Unknown Product',
+      imageUrl: product ? product.imageUrl : '',
+      description: product ? (product.description || product.desc || '') : '',
+      category: product ? (product.category || product.brand || '') : '—',
+      productType: product ? (product.productType || '') : ''
+    };
+  });
+
+  // Sort the copy if a column is selected
+  if (productSortCol) {
+    enrichedPrices.sort((a, b) => {
+      let valA = a[productSortCol];
+      let valB = b[productSortCol];
+      
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+      
+      // If we are sorting by date
+      if (productSortCol === 'updatedAt') {
+        const timeA = valA && valA.seconds ? valA.seconds * 1000 : new Date(valA).getTime();
+        const timeB = valB && valB.seconds ? valB.seconds * 1000 : new Date(valB).getTime();
+        return productSortDir === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+      
+      valA = valA.toString().toLowerCase();
+      valB = valB.toString().toLowerCase();
+      
+      const numA = parseFloat(valA);
+      const numB = parseFloat(valB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return productSortDir === 'asc' ? numA - numB : numB - numA;
+      }
+      
+      if (valA < valB) return productSortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return productSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  tbody.innerHTML = enrichedPrices.map(p => {
+    const isChecked = selectedProductIds.has(p.id.toString()) ? 'checked' : '';
+    
+    // Format updated date
+    let updatedDate = '—';
+    if (p.updatedAt) {
+      if (typeof p.updatedAt.toDate === 'function') {
+        const dt = p.updatedAt.toDate();
+        updatedDate = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      } else if (p.updatedAt.seconds) {
+        const dt = new Date(p.updatedAt.seconds * 1000);
+        updatedDate = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      } else {
+        const dt = new Date(p.updatedAt);
+        updatedDate = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      }
+    }
+
+    return `
     <tr>
+      <td style="text-align: center;"><input type="checkbox" class="product-select" data-id="${p.id}" ${isChecked} onchange="toggleProductSelection('${p.id}', this.checked)" style="cursor:pointer;" /></td>
       <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-3);">${p.id}</td>
       <td>
         <div style="display:flex; align-items:center; gap:12px;">
@@ -321,13 +527,20 @@ function renderProducts() {
           </div>
         </div>
       </td>
-      <td>${p.category || '—'}</td>
-      <td>${p.productType || '—'}</td>
+      <td><strong>${p.retailerName}</strong></td>
+      <td><span style="padding: 4px 8px; background: var(--bg-2); border-radius: 4px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: var(--text);">${p.category || '—'}</span></td>
+      <td><span style="padding: 4px 8px; background: rgba(13, 110, 253, 0.1); color: #0d6efd; border-radius: 4px; font-size: 0.78rem; font-weight: 600;">${p.productType || '—'}</span></td>
+      <td><strong style="color:var(--green-700)">RM ${p.price.toFixed(2)}</strong></td>
+      <td style="color:var(--text-2);font-size:.82rem">${updatedDate}</td>
       <td>
-        <button class="action-btn edit"   onclick="openEditProductModal('${p.id}')">✏ Edit</button>
-        <button class="action-btn delete" onclick="deleteProduct('${p.id}')">🗑 Delete</button>
+        <button class="action-btn edit"   onclick="openEditPriceModal('${p.id}')">✏ Edit</button>
+        <button class="action-btn delete" onclick="deletePrice('${p.id}')">🗑 Delete</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  // Update button state and selection checkbox
+  updateDeleteSelectedButton();
 }
 
 async function addProduct() {
@@ -410,36 +623,7 @@ async function deleteProduct(id) {
 
 // ── Render: Prices ────────────────────────────────────────────────────────────
 
-function renderPrices() {
-  const tbody = document.getElementById('prices-tbody');
-  
-  // Update the product select in add price modal
-  const prodSelect = document.getElementById('new-price-product');
-  prodSelect.innerHTML = products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
 
-  // Update the retailer select
-  const retSelect = document.getElementById('new-price-retailer');
-  retSelect.innerHTML = retailers.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-
-  tbody.innerHTML = prices.map(p => {
-    const productName  = products.find(prod => prod.id == p.productId)?.name || 'Unknown';
-    const retailerName = retailers.find(ret => ret.id == p.retailerId)?.name || 'Unknown';
-    const updatedDate  = p.updatedAt ? p.updatedAt.toDate().toLocaleDateString() : '—';
-    
-    return `
-    <tr>
-      <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-3);">${p.id}</td>
-      <td>${productName}</td>
-      <td>${retailerName}</td>
-      <td><strong style="color:var(--green-700)">RM ${p.price.toFixed(2)}</strong></td>
-      <td style="color:var(--text-2);font-size:.82rem">${updatedDate}</td>
-      <td>
-        <button class="action-btn edit" onclick="openEditPriceModal('${p.id}')">✏ Edit</button>
-        <button class="action-btn delete" onclick="deletePrice('${p.id}')">🗑 Delete</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
 
 async function addPrice() {
   const productId  = document.getElementById('new-price-product').value;
@@ -787,6 +971,9 @@ function filterTable(tableId, query) {
   rows.forEach(row => {
     row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
+  if (tableId === 'products-table') {
+    updateDeleteSelectedButton();
+  }
 }
 
 function filterByColumn(tableId, colIndex, value) {
@@ -799,6 +986,9 @@ function filterByColumn(tableId, colIndex, value) {
       row.style.display = 'none';
     }
   });
+  if (tableId === 'products-table') {
+    updateDeleteSelectedButton();
+  }
 }
 
 function handleGlobalSearch() {
@@ -1065,7 +1255,7 @@ async function seedScraperJobs() {
   const defaultJobs = [
     {
       retailerName: 'Mydin',
-      targetUrl: 'https://mydin.my/category/all-products?category_uid=1222',
+      targetUrl: 'https://mydin.my/search?search=cooking+oil+5kg,milo+1kg,maggi+curry+5+pack,tea+bags,rice+10kg',
       frequency: 'Daily',
       scheduledTime: '02:00',
       lastRun: '—',
@@ -1074,7 +1264,7 @@ async function seedScraperJobs() {
     },
     {
       retailerName: 'myAEON2go',
-      targetUrl: 'https://myaeon2go.com',
+      targetUrl: 'https://myaeon2go.com/products/search/cooking%20oil%205kg,milo%201kg,maggi%20curry%205%20pack,tea%20bags,rice%2010kg',
       frequency: 'Every 12 Hours',
       scheduledTime: '08:00',
       lastRun: '—',
@@ -1083,7 +1273,7 @@ async function seedScraperJobs() {
     },
     {
       retailerName: "Lotus's",
-      targetUrl: 'https://www.lotuss.com.my/en',
+      targetUrl: 'https://www.lotuss.com.my/en/search/cooking%20oil, https://www.lotuss.com.my/en/search/milo',
       frequency: 'Every 6 Hours',
       scheduledTime: '06:00',
       lastRun: '—',
@@ -1389,3 +1579,7 @@ window.updateFrequency = updateFrequency;
 window.updateScheduledTime = updateScheduledTime;
 window.filterLog = filterLog;
 window.clearLog = clearLog;
+window.sortProducts = sortProducts;
+window.toggleProductSelection = toggleProductSelection;
+window.toggleAllProductSelection = toggleAllProductSelection;
+window.deleteSelectedProducts = deleteSelectedProducts;

@@ -67,9 +67,31 @@ final enhancedPricesProvider = Provider<AsyncValue<List<Price>>>((ref) {
 // ============== COMPUTED PROVIDERS ==============
 
 /// Search products by query (computed from stream)
-final productSearchProvider = Provider.family<List<Product>, String>((ref, query) {
+/// Deduplicated list of products by name (computed)
+String _getProductMatchKey(String name) {
+  // Normalize name: lowercase and strip out all non-alphanumeric characters (spaces, hyphens, parentheses, etc.)
+  return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+}
+
+/// Deduplicated list of products by name (computed)
+final groupedProductsProvider = Provider<AsyncValue<List<Product>>>((ref) {
   final productsAsync = ref.watch(productsStreamProvider);
-  return productsAsync.when(
+  return productsAsync.whenData((products) {
+    final Map<String, Product> uniqueProducts = {};
+    for (final product in products) {
+      final matchKey = _getProductMatchKey(product.name);
+      if (!uniqueProducts.containsKey(matchKey)) {
+        uniqueProducts[matchKey] = product;
+      }
+    }
+    return uniqueProducts.values.toList();
+  });
+});
+
+/// Search products by query (computed from deduplicated list)
+final productSearchProvider = Provider.family<List<Product>, String>((ref, query) {
+  final groupedProductsAsync = ref.watch(groupedProductsProvider);
+  return groupedProductsAsync.when(
     data: (products) {
       if (query.isEmpty) return products;
       final lowercaseQuery = query.toLowerCase();
@@ -96,13 +118,35 @@ final productByIdProvider = Provider.family<Product?, int>((ref, productId) {
   );
 });
 
-/// Prices for specific product (computed with joined data)
+/// Prices for specific product (computed with joined data from all matching products by name)
 final pricesForProductProvider = Provider.family<List<Price>, int>((ref, productId) {
   final enhancedPricesAsync = ref.watch(enhancedPricesProvider);
-  return enhancedPricesAsync.when(
-    data: (livePrices) {
-      final filteredLive = livePrices.where((p) => p.productId == productId).toList();
-      return filteredLive..sort((a, b) => a.price.compareTo(b.price));
+  final productsAsync = ref.watch(productsStreamProvider);
+  
+  return productsAsync.when(
+    data: (products) {
+      final targetProduct = products.cast<Product?>().firstWhere(
+        (p) => p?.id == productId,
+        orElse: () => null,
+      );
+      if (targetProduct == null) return [];
+      
+      final targetKey = _getProductMatchKey(targetProduct.name);
+      final sameNameProductIds = products
+          .where((p) => _getProductMatchKey(p.name) == targetKey)
+          .map((p) => p.id)
+          .toSet();
+          
+      return enhancedPricesAsync.when(
+        data: (livePrices) {
+          final filteredLive = livePrices
+              .where((price) => sameNameProductIds.contains(price.productId))
+              .toList();
+          return filteredLive..sort((a, b) => a.price.compareTo(b.price));
+        },
+        loading: () => [],
+        error: (_, __) => [],
+      );
     },
     loading: () => [],
     error: (_, __) => [],

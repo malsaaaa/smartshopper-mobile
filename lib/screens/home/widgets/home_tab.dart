@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/config/routes.dart';
-import 'package:smartshopper_mobile/data/mock_data.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
 import 'package:smartshopper_mobile/providers/index.dart';

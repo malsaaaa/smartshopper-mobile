@@ -84,7 +84,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
   @override
   Widget build(BuildContext context) {
-    final productsAsync = ref.watch(productsStreamProvider);
+    final productsAsync = ref.watch(groupedProductsProvider);
     final searchResults = ref.watch(productSearchProvider(_query));
     final recentSearches = ref.watch(recentSearchesProvider);
     final popularSearches = ref.watch(popularSearchesProvider);

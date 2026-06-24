@@ -10,20 +10,29 @@ import 'package:smartshopper_mobile/services/scrapers/lotus_scraper.dart';
 class WebScraperService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   
-  // Scrapers for each retailer
+  // Scrapers for each retailer.
+  // Keys are the *normalized* retailer name (lowercase, alphanumeric only).
+  // e.g. "Lotus's" → "lotuss", "myAEON2go" → "myaeon2go"
   late final Map<String, BaseScraper> _scrapers = {
     'mydin': MyDinScraper(),
     'myaeon2go': MyAeon2GoScraper(),
-    'lotus': LotusScraper(),
+    'lotuss': LotusScraper(),
   };
 
   /// Get all available scrapers
   Map<String, BaseScraper> getScrapers() => _scrapers;
 
-  /// Get scraper by retailer name
+  /// Get scraper by retailer name.
+  /// The name is normalized (lowercase, non-alphanumeric stripped) before lookup
+  /// so display names like "Lotus's" and "myAEON2go" map correctly.
   BaseScraper? getScraper(String retailerName) {
-    return _scrapers[retailerName.toLowerCase()];
+    return _scrapers[_normalizeKey(retailerName)];
   }
+
+  /// Normalize a retailer display name to a map key:
+  /// lowercase + strip any character that is not a-z or 0-9.
+  String _normalizeKey(String name) =>
+      name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   /// Scrape all retailers and store results in Firestore
   /// Returns count of scraped and stored products
@@ -66,9 +75,9 @@ class WebScraperService {
     int? pageNumber,
     String? category,
   }) async {
-    final scraper = _scrapers[retailerName.toLowerCase()];
+    final scraper = _scrapers[_normalizeKey(retailerName)];
     if (scraper == null) {
-      print('❌ Scraper not found for: $retailerName');
+      print('❌ Scraper not found for: $retailerName (normalized: "${_normalizeKey(retailerName)}", available: ${_scrapers.keys.toList()})');
       return 0;
     }
 
@@ -168,56 +177,84 @@ class WebScraperService {
     }
   }
 
-  /// Store products and their prices in Firestore
+  /// Store products and their prices in Firestore.
+  ///
+  /// Firestore batches are limited to 500 writes. Since each product needs
+  /// 2 writes (product doc + price doc), we chunk at 200 pairs per batch.
   Future<void> _storeProducts(List<(Product, Price)> products) async {
-    try {
-      final batch = _db.batch();
-      int productCount = 0;
+    const int chunkSize = 200; // 200 pairs × 2 writes = 400 writes per batch
+    int totalStored = 0;
 
-      for (final (product, price) in products) {
-        // Store product
-        final productDoc = _db.collection('products').doc(product.id.toString());
-        batch.set(
-          productDoc,
-          {
-            'id': product.id,
-            'name': product.name,
-            'description': product.description,
-            'category': product.category,
-            'productType': product.productType,
-            'imageUrl': product.imageUrl,
-            'createdAt': product.createdAt,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+    for (int start = 0; start < products.length; start += chunkSize) {
+      final end =
+          (start + chunkSize < products.length) ? start + chunkSize : products.length;
+      final chunk = products.sublist(start, end);
 
-        // Store price
-        final priceId = '${price.retailerId}_${product.id}';
-        final priceDoc = _db.collection('prices').doc(priceId);
-        batch.set(
-          priceDoc,
-          {
-            'id': priceId,
-            'productId': product.id.toString(),
-            'retailerId': price.retailerId.toString(),
-            'price': price.price,
-            'productUrl': price.productUrl,
-            'scrapedAt': price.scrapedAt,
-            'createdAt': price.createdAt,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+      try {
+        final batch = _db.batch();
 
-        productCount++;
+        for (final (product, price) in chunk) {
+          // Use a stable document ID so re-runs update rather than duplicate.
+          // Format: <retailerId>_<normalized-name-hash>
+          final stableProductId = '${price.retailerId}_${_stableKey(product.name)}';
+
+          final productDoc = _db.collection('products').doc(stableProductId);
+          batch.set(
+            productDoc,
+            {
+              'id': stableProductId,
+              'name': product.name,
+              'description': product.description,
+              'category': product.category,
+              'productType': product.productType,
+              'imageUrl': product.imageUrl,
+              'createdAt': product.createdAt,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+
+          // Price doc ID: retailerId_stableProductId
+          final priceId = '${price.retailerId}_$stableProductId';
+          final priceDoc = _db.collection('prices').doc(priceId);
+          batch.set(
+            priceDoc,
+            {
+              'id': priceId,
+              'productId': stableProductId,
+              'retailerId': price.retailerId.toString(),
+              'price': price.price,
+              'productUrl': price.productUrl,
+              'scrapedAt': price.scrapedAt,
+              'createdAt': price.createdAt,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+        }
+
+        await batch.commit();
+        totalStored += chunk.length;
+        print('✅ Stored chunk ${start ~/ chunkSize + 1}: ${chunk.length} products (total: $totalStored)');
+      } catch (e) {
+        print('❌ Error storing products chunk [$start-$end]: $e');
       }
-
-      await batch.commit();
-      print('✅ Stored $productCount products');
-    } catch (e) {
-      print('❌ Error storing products: $e');
     }
+
+    print('✅ Stored $totalStored / ${products.length} products in total');
+  }
+
+  /// Create a short, stable key from a product name for use as a Firestore
+  /// document ID. Strips non-alphanumeric characters and lowercases.
+  String _stableKey(String name) {
+    // Keep alphanumerics + spaces, collapse whitespace, lowercase, replace spaces
+    final cleaned = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_');
+    // Truncate to 80 chars to stay well within Firestore ID limits
+    return cleaned.length > 80 ? cleaned.substring(0, 80) : cleaned;
   }
 
   /// Get products from a specific retailer

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/firestore_shopping_list_provider.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';

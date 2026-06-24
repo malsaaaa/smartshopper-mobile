@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:smartshopper_mobile/data/models/index.dart';
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 import 'base_scraper.dart';
 
@@ -23,13 +24,13 @@ class MyAeon2GoScraper extends BaseScraper {
     String? csrfToken,
   }) : csrfToken = csrfToken ?? defaultCsrfToken;
 
-  static const Map<String, int> _categoryGids = {
-    'all': 8412982,
-    'aeon_fresh': 545234,
-    'ready_to_eat': 8630656,
-    'delica': 10000022,
-    'best_sellers': 1066,
-  };
+  static const List<String> searchTerms = [
+    'cooking oil 5kg',
+    'milo 1kg',
+    'maggi curry 5 pack',
+    'tea bags',
+    'rice 10kg',
+  ];
 
   @override
   Retailer getRetailerInfo() {
@@ -49,20 +50,33 @@ class MyAeon2GoScraper extends BaseScraper {
     String? category,
   }) async {
     try {
-      final gid = _resolveCategoryGid(category);
-      final url = Uri.parse(
-        '$baseUrl/api/product/ples?getSmartBrand=true&isCarousel=true&inStockOnly=true&limit=48&excludeVariants=&serviceType=&skipProduct=false&gid=$gid&pleType=softCategory',
-      );
-
-      final response = await _getJson(url);
-      if (response.statusCode != 200) {
-        print('❌ myAEON2go scraping failed: ${response.statusCode}');
-        return [];
+      // If a specific category/query is passed (e.g., from manual search)
+      if (category != null && category.isNotEmpty) {
+        final products = await _fetchProductsForQuery(category);
+        print('✅ myAEON2go: Scraped ${products.length} products for search category "$category"');
+        return products;
       }
 
-      final results = _parseListResponse(response.body);
-      print('✅ myAEON2go: Scraped ${results.length} products');
-      return results;
+      // Default background run: scrape the 5 target search keywords
+      final allProducts = <(Product, Price)>[];
+
+      for (final term in searchTerms) {
+        print('🔄 myAEON2go: Scraping search results for "$term"...');
+        final products = await _fetchProductsForQuery(term);
+
+        if (products.isNotEmpty) {
+          allProducts.addAll(products);
+          print('✅ myAEON2go: Scraped ${products.length} products for "$term"');
+        } else {
+          print('⚠️ myAEON2go: No products found for "$term"');
+        }
+
+        // Polite delay of 500ms between search requests
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      print('✅ myAEON2go: Scraped a total of ${allProducts.length} products across all search terms');
+      return allProducts;
     } catch (e) {
       print('❌ myAEON2go scraping error: $e');
       return [];
@@ -89,7 +103,7 @@ class MyAeon2GoScraper extends BaseScraper {
 
   @override
   Future<List<String>> getCategories() async {
-    return _categoryGids.keys.toList(growable: false);
+    return searchTerms;
   }
 
   Future<http.Response> _getJson(Uri uri) {
@@ -112,20 +126,56 @@ class MyAeon2GoScraper extends BaseScraper {
     return http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
   }
 
-  int _resolveCategoryGid(String? category) {
-    if (category == null || category.trim().isEmpty) {
-      return _categoryGids['best_sellers']!;
+  Future<List<(Product, Price)>> _fetchProductsForQuery(String query) async {
+    final url = '$baseUrl/products/search/${Uri.encodeComponent(query)}';
+    
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: const {
+          'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'user-agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'referer': '$baseUrl/',
+          'accept-language': 'en-US,en;q=0.9',
+        },
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        print('❌ myAEON2go search page failed: ${response.statusCode}');
+        return [];
+      }
+
+      final html = response.body;
+      
+      // Extract PhoenixAppState
+      const startKeyword = "let PhoenixAppState = '";
+      final startIndex = html.indexOf(startKeyword);
+      if (startIndex == -1) {
+        print('❌ myAEON2go: let PhoenixAppState not found in HTML for query "$query"');
+        return [];
+      }
+
+      final valueStart = startIndex + startKeyword.length;
+      final valueEnd = html.indexOf("';", valueStart);
+      if (valueEnd == -1) {
+        print('❌ myAEON2go: End of PhoenixAppState string not found for query "$query"');
+        return [];
+      }
+
+      final base64Str = html.substring(valueStart, valueEnd);
+      final decodedBytes = base64.decode(base64Str);
+      final decodedStr = utf8.decode(decodedBytes);
+      final decoded = jsonDecode(decodedStr);
+
+      return _parseStateResponse(decoded);
+    } catch (e) {
+      print('❌ myAEON2go: Error fetching/parsing search for "$query": $e');
+      return [];
     }
-
-    final parsed = int.tryParse(category.trim());
-    if (parsed != null) return parsed;
-
-    final normalized = _normalizeCategory(category);
-    return _categoryGids[normalized] ?? _categoryGids['best_sellers']!;
   }
 
-  List<(Product, Price)> _parseListResponse(String body) {
-    final decoded = jsonDecode(body);
+  List<(Product, Price)> _parseStateResponse(dynamic decoded) {
     final items = _extractVariantList(decoded);
     return items.map((item) {
       final product = _mapProduct(item);
@@ -202,11 +252,48 @@ class MyAeon2GoScraper extends BaseScraper {
 
   Product _mapProduct(Map<String, dynamic> item) {
     final productId = _extractInt(item['_id']) ?? _extractInt(item['gid']) ?? DateTime.now().millisecondsSinceEpoch;
-    final name = _firstNonEmptyString([
+    
+    // Extract base name
+    String baseName = _firstNonEmptyString([
       item['nameText'],
       item['name'],
       item['extendedName'],
-    ]);
+    ]).trim();
+
+    if (baseName.isEmpty) {
+      baseName = 'myAEON2go Product $productId';
+    }
+
+    // Extract brand
+    final brand = _firstNonEmptyString([item['brandingText']]).trim();
+    
+    // Extract size/weight details (e.g. "3 kg")
+    final size = _firstNonEmptyString([item['extendedInfoText']]).trim();
+
+    // Construct descriptive name
+    String fullName = baseName;
+    
+    // 1. Prepend brand if not already in the name
+    if (brand.isNotEmpty) {
+      final lowerName = fullName.toLowerCase();
+      final lowerBrand = brand.toLowerCase();
+      if (!lowerName.contains(lowerBrand)) {
+        fullName = '$brand $fullName';
+      }
+    }
+    
+    // 2. Append size/weight if not already in the name
+    if (size.isNotEmpty) {
+      final lowerName = fullName.toLowerCase();
+      final lowerSize = size.toLowerCase();
+      if (!lowerName.contains(lowerSize)) {
+        fullName = '$fullName $size';
+      }
+    }
+
+    // Apply rule-based naming standardization
+    final standardizedName = standardizeProductName(fullName);
+
     final description = _stripHtml(_firstNonEmptyString([
       item['longDescription'],
       item['extendedInfoText'],
@@ -216,10 +303,10 @@ class MyAeon2GoScraper extends BaseScraper {
 
     return Product(
       id: productId,
-      name: name.isEmpty ? 'myAEON2go Product $productId' : name,
+      name: standardizedName,
       description: description,
-      category: retailerName,
-      productType: _extractProductType(item),
+      category: extractBrand(standardizedName),
+      productType: extractCategory(standardizedName),
       imageUrl: imageUrl,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

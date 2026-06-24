@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:smartshopper_mobile/data/models/index.dart';
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 import 'base_scraper.dart';
 
 /// MyDin retailer scraper
@@ -13,6 +14,13 @@ class MyDinScraper extends BaseScraper {
   static const int retailerId = 1;
   static const int defaultCategoryId = 1222;
   static const int defaultPageSize = 48;
+  static const List<String> searchTerms = [
+    'cooking oil 5kg',
+    'milo 1kg',
+    'maggi curry 5 pack',
+    'tea bags',
+    'rice 10kg',
+  ];
 
   @override
   Retailer getRetailerInfo() {
@@ -32,52 +40,40 @@ class MyDinScraper extends BaseScraper {
     String? category,
   }) async {
     try {
-      final categoryId = await _resolveCategoryId(category) ?? defaultCategoryId;
-      
-      if (pageNumber != null) {
+      // If a specific category or query is passed (e.g. from manual search/filter)
+      if (category != null && category.isNotEmpty) {
         final products = await _fetchProducts(
-          filter: {
-            'category_id': {
-              'eq': categoryId,
-            },
-          },
+          search: category,
           pageSize: defaultPageSize,
-          currentPage: pageNumber,
+          currentPage: pageNumber ?? 1,
         );
-        print('✅ MyDin: Scraped ${products.length} products for page $pageNumber');
+        print('✅ MyDin: Scraped ${products.length} products for search category "$category"');
         return products;
       }
 
-      // Default to scraping up to 5 pages
+      // Default background run: scrape the 5 target search keywords
       final allProducts = <(Product, Price)>[];
-      const int maxPages = 5;
 
-      for (int page = 1; page <= maxPages; page++) {
-        print('🔄 MyDin: Scraping page $page...');
+      for (final term in searchTerms) {
+        print('🔄 MyDin: Scraping search results for "$term"...');
         final products = await _fetchProducts(
-          filter: {
-            'category_id': {
-              'eq': categoryId,
-            },
-          },
+          search: term,
           pageSize: defaultPageSize,
-          currentPage: page,
+          currentPage: 1,
         );
 
-        if (products.isEmpty) {
-          print('ℹ️ MyDin: No more products found on page $page.');
-          break;
+        if (products.isNotEmpty) {
+          allProducts.addAll(products);
+          print('✅ MyDin: Scraped ${products.length} products for "$term"');
+        } else {
+          print('⚠️ MyDin: No products found for "$term"');
         }
 
-        allProducts.addAll(products);
-
-        // Polite delay of 500ms between requests
-        if (page < maxPages) {
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
+        // Polite delay of 500ms between search requests
+        await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      print('✅ MyDin: Scraped a total of ${allProducts.length} products across multiple pages');
+      print('✅ MyDin: Scraped a total of ${allProducts.length} products across all search terms');
       return allProducts;
     } catch (e) {
       print('❌ MyDin scraping error: $e');
@@ -111,22 +107,22 @@ class MyDinScraper extends BaseScraper {
 
   @override
   Future<List<String>> getCategories() async {
-    return [
-      'all-products',
-    ];
+    return searchTerms;
   }
 
   Future<List<(Product, Price)>> _fetchProducts({
-    required Map<String, dynamic> filter,
+    Map<String, dynamic>? filter,
+    String? search,
     required int pageSize,
     required int currentPage,
   }) async {
     final payload = [
       {
-        'filter': filter,
+        if (filter != null) 'filter': filter,
+        if (search != null) 'search': search,
         'pageSize': pageSize,
         'currentPage': currentPage,
-        'sort': {
+        if (filter != null) 'sort': {
           'position': 'ASC',
         },
       },
@@ -155,10 +151,6 @@ class MyDinScraper extends BaseScraper {
     }
 
     return _parseProductsResponse(response.body);
-  }
-
-  Future<int?> _resolveCategoryId(String? category) async {
-    return defaultCategoryId;
   }
 
   List<(Product, Price)> _parseProductsResponse(String body) {
@@ -216,6 +208,8 @@ class MyDinScraper extends BaseScraper {
       item['name'],
       _mapString(item['description'], 'html'),
     ]);
+    final standardizedName = standardizeProductName(name.isEmpty ? 'Mydin Product $id' : name);
+    
     final description = _stripHtml(
       _firstNonEmptyString([
         _mapString(item['description'], 'html'),
@@ -226,10 +220,10 @@ class MyDinScraper extends BaseScraper {
 
     return Product(
       id: id,
-      name: name.isEmpty ? 'Mydin Product $id' : name,
+      name: standardizedName,
       description: description,
-      category: retailerName,
-      productType: _extractProductType(name),
+      category: extractBrand(standardizedName),
+      productType: extractCategory(standardizedName),
       imageUrl: imageUrl,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

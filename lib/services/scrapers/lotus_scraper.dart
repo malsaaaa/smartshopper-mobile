@@ -1,15 +1,46 @@
-import 'package:html/parser.dart' as html;
-import 'package:html/dom.dart' as dom;
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:smartshopper_mobile/data/models/index.dart';
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 import 'base_scraper.dart';
 
-/// Lotus retailer scraper
-/// Scrapes product information from Lotus website
+/// Lotus (Lotus's Superstore Malaysia) retailer scraper.
+///
+/// Lotus's website is a React SPA backed by a JSON REST API at
+/// `api-o2o.lotuss.com.my`. This scraper calls that API directly — no
+/// headless-browser required — using the same headers the web app sends.
 class LotusScraper extends BaseScraper {
-  static const String baseUrl = 'https://www.lotuss.com.my/en';
+  static const String _storeFront = 'https://www.lotuss.com.my/en';
+  static const String _apiBase = 'https://api-o2o.lotuss.com.my';
+  static const String _websiteCode = 'malaysia_hy';
+  static const int _pageSize = 30; // API supports up to 30 items per request
+
   static const String retailerName = 'Lotus';
   static const int retailerId = 3;
+
+  // ── Fixed API headers (captured from live browser session) ──────────────────
+  static const Map<String, String> _apiHeaders = {
+    'accept': 'application/json, text/plain, */*',
+    'accept-language': 'en',
+    'channel': 'web',
+    'version': '2.3.9',
+    'key':
+        'SeiRQmEDnaZXOlpfKhCjV4Bo2y6vAcW99QKmzifsgP2uCMN7wF3ahRXex84kH6qUVIWoY5Dp0GEljdAvS1JytOZcLbnBTr',
+    'origin': 'https://www.lotuss.com.my',
+    'referer': 'https://www.lotuss.com.my/',
+    'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  };
+
+  /// Default search terms used during the scheduled background scrape.
+  static const List<String> searchTerms = [
+    'cooking oil',
+    'milo',
+  ];
+
+  // ── BaseScraper overrides ────────────────────────────────────────────────────
 
   @override
   Retailer getRetailerInfo() {
@@ -17,7 +48,7 @@ class LotusScraper extends BaseScraper {
       id: retailerId,
       name: retailerName,
       logoUrl: 'assets/images/retailers/lotuss.png',
-      website: baseUrl,
+      website: _storeFront,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -29,44 +60,23 @@ class LotusScraper extends BaseScraper {
     String? category,
   }) async {
     try {
-      final List<(Product, Price)> results = [];
-      
-      // Lotus search page URL
-      final url = _buildSearchUrl(category: category, page: pageNumber);
-      
-      final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => http.Response('Timeout', 408),
-      );
-
-      if (response.statusCode != 200) {
-        print('❌ Lotus scraping failed: ${response.statusCode}');
-        return [];
+      // If a specific query is passed (e.g., from a manual search)
+      if (category != null && category.isNotEmpty) {
+        final products = await _fetchProductsForQuery(category);
+        print(
+            '✅ Lotus: Scraped ${products.length} products for query "$category"');
+        return products;
       }
 
-      final document = html.parse(response.body);
-      
-      // Extract products - adjust selectors based on actual Lotus HTML structure
-      final productElements = document.querySelectorAll('.product, [data-product], .product-item');
-      
-      int productId = 1;
-      for (final element in productElements) {
-        try {
-          final product = _parseProduct(element, productId);
-          final price = _parsePrice(element, productId);
-          
-          if (product != null && price != null) {
-            results.add((product, price));
-            productId++;
-          }
-        } catch (e) {
-          print('⚠️ Error parsing Lotus product: $e');
-          continue;
-        }
+      // Default background run — iterate over all search terms
+      final List<(Product, Price)> all = [];
+      for (final term in searchTerms) {
+        final products = await _fetchProductsForQuery(term);
+        all.addAll(products);
+        print('✅ Lotus: Scraped ${products.length} products for "$term"');
       }
-
-      print('✅ Lotus: Scraped ${results.length} products');
-      return results;
+      print('✅ Lotus: Total scraped ${all.length} products');
+      return all;
     } catch (e) {
       print('❌ Lotus scraping error: $e');
       return [];
@@ -75,146 +85,138 @@ class LotusScraper extends BaseScraper {
 
   @override
   Future<(Product, Price)?> scrapeProductByUrl(String url) async {
-    try {
-      final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 30),
-      );
-
-      if (response.statusCode != 200) return null;
-
-      final document = html.parse(response.body);
-      
-      // Extract single product details
-      final productName = document.querySelector('h1, .product-name, .title')?.text ?? '';
-      final productPrice = _extractPrice(
-        document.querySelector('.price, [data-price], .product-price')?.text ?? '0'
-      );
-      final imageUrl = document.querySelector('img.product-image, img[data-src]')?.attributes['src'] ?? '';
-      final description = document.querySelector('.description, .product-details, [data-description]')?.text ?? '';
-
-      if (productName.isEmpty) return null;
-
-      final product = Product(
-        id: DateTime.now().millisecondsSinceEpoch,
-        name: productName,
-        description: description,
-        category: 'Lotus',
-        productType: 'General',
-        imageUrl: imageUrl.startsWith('http') ? imageUrl : '$baseUrl$imageUrl',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final price = Price(
-        id: DateTime.now().millisecondsSinceEpoch,
-        productId: product.id,
-        retailerId: retailerId,
-        price: productPrice,
-        productUrl: url,
-        scrapedAt: DateTime.now(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      return (product, price);
-    } catch (e) {
-      print('❌ Lotus product URL scraping error: $e');
-      return null;
-    }
+    // Lotus product detail pages are also React-rendered. We cannot scrape
+    // them via HTTP, but the list API gives us enough data so this path is
+    // not normally needed.
+    print('⚠️ Lotus: scrapeProductByUrl is not supported for SPA pages.');
+    return null;
   }
 
   @override
-  Future<List<String>> getCategories() async {
-    // Return common Lotus categories
-    return [
-      'Groceries',
-      'Fresh Produce',
-      'Meat & Seafood',
-      'Dairy & Eggs',
-      'Bakery & Confectionery',
-      'Beverages',
-      'Snacks & Confectionery',
-      'Health & Personal Care',
-      'Household & Cleaning',
-      'Home Living',
-    ];
+  Future<List<String>> getCategories() async => const [
+        'Beverages',
+        'Cooking Ingredients',
+        'Food',
+      ];
+
+  // ── Private helpers ──────────────────────────────────────────────────────────
+
+  /// Fetch all products for a single search term, paging through results.
+  Future<List<(Product, Price)>> _fetchProductsForQuery(String query) async {
+    final List<(Product, Price)> results = [];
+    int offset = 0;
+    int total = _pageSize; // will be updated after first response
+
+    while (offset < total) {
+      final page = await _fetchPage(query: query, offset: offset);
+      if (page == null) break;
+
+      total = page['meta']?['total'] as int? ?? 0;
+      final products =
+          (page['data']?['products'] as List<dynamic>?) ?? [];
+
+      for (final raw in products) {
+        final pair = _parsePair(raw as Map<String, dynamic>);
+        if (pair != null) results.add(pair);
+      }
+
+      offset += _pageSize;
+    }
+
+    return results;
   }
 
-  /// Build search URL based on filters
-  String _buildSearchUrl({String? category, int? page}) {
-    final pageStr = page != null ? '?page=$page' : '';
-    final categoryStr = category != null ? '&category=$category' : '';
-    return '$baseUrl/products$pageStr$categoryStr';
-  }
+  /// Call one page of the Lotus product search API.
+  Future<Map<String, dynamic>?> _fetchPage({
+    required String query,
+    required int offset,
+  }) async {
+    final q = jsonEncode({
+      'offset': offset,
+      'limit': _pageSize,
+      'search': query,
+      'sort': 'relevance:DESC',
+      'filter': <String, dynamic>{},
+      'websiteCode': _websiteCode,
+    });
 
-  /// Parse individual product element
-  Product? _parseProduct(dom.Element element, int productId) {
+    final uri = Uri.parse(
+        '$_apiBase/lotuss-mobile-bff/product/v2/products?q=${Uri.encodeComponent(q)}');
+
     try {
-      final name = element.querySelector('.product-name, .title, h2, .name')?.text.trim() ?? '';
-      final imageUrl = element.querySelector('img')?.attributes['src'] ?? '';
-      final description = element.querySelector('.description, .details')?.text.trim() ?? '';
+      final response = await http
+          .get(uri, headers: _apiHeaders)
+          .timeout(const Duration(seconds: 30));
 
-      if (name.isEmpty) return null;
+      if (response.statusCode != 200) {
+        print('❌ Lotus API error ${response.statusCode}: ${response.body.substring(0, 200)}');
+        return null;
+      }
 
-      return Product(
-        id: productId,
-        name: name,
-        description: description,
-        category: 'Lotus',
-        productType: _extractProductType(name),
-        imageUrl: imageUrl.startsWith('http') ? imageUrl : '$baseUrl$imageUrl',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      print('⚠️ Error parsing Lotus product: $e');
+      print('❌ Lotus API request failed: $e');
       return null;
     }
   }
 
-  /// Parse price from product element
-  Price? _parsePrice(dom.Element element, int productId) {
+  /// Parse one product JSON object from the API into a (Product, Price) pair.
+  (Product, Price)? _parsePair(Map<String, dynamic> raw) {
     try {
-      final priceText = element.querySelector('.price, [data-price], .product-price')?.text ?? '0';
-      final price = _extractPrice(priceText);
-      final url = element.querySelector('a')?.attributes['href'] ?? '';
+      final name = (raw['name'] as String? ?? '').trim();
+      if (name.isEmpty) return null;
 
-      return Price(
+      // Price: use finalPrice (after promotions) first, fall back to regularPrice
+      final minimumPrice =
+          (raw['priceRange']?['minimumPrice'] as Map<String, dynamic>?) ?? {};
+      final finalPrice =
+          (minimumPrice['finalPrice']?['value'] as num?)?.toDouble() ?? 0.0;
+      final regularPrice =
+          (minimumPrice['regularPrice']?['value'] as num?)?.toDouble() ??
+              finalPrice;
+      final price = finalPrice > 0 ? finalPrice : regularPrice;
+
+      // Image
+      final imageUrl = (raw['thumbnail']?['url'] as String?) ??
+          (raw['smallImage']?['url'] as String?) ??
+          (raw['image']?['url'] as String?) ??
+          '';
+
+      // Product URL
+      final urlKey = (raw['urlKey'] as String?) ?? (raw['sku'] as String?) ?? '';
+      final productUrl = urlKey.isNotEmpty
+          ? '$_storeFront/product/$urlKey'
+          : _storeFront;
+
+      final brand = extractBrand(name);
+      final category = extractCategory(name);
+
+      final product = Product(
         id: DateTime.now().millisecondsSinceEpoch,
-        productId: productId,
+        name: name,
+        description: '',
+        category: brand,
+        productType: category,
+        imageUrl: imageUrl,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final priceObj = Price(
+        id: DateTime.now().millisecondsSinceEpoch,
+        productId: product.id,
         retailerId: retailerId,
         price: price,
-        productUrl: url.startsWith('http') ? url : '$baseUrl$url',
+        productUrl: productUrl,
         scrapedAt: DateTime.now(),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
+
+      return (product, priceObj);
     } catch (e) {
-      print('⚠️ Error parsing Lotus price: $e');
+      print('⚠️ Lotus: error parsing product: $e');
       return null;
     }
-  }
-
-  /// Extract numeric price from text
-  double _extractPrice(String text) {
-    try {
-      // Remove currency symbols and extra text, keep only numbers and decimal point
-      final cleaned = text.replaceAll(RegExp(r'[^\d.]'), '');
-      return double.tryParse(cleaned) ?? 0.0;
-    } catch (e) {
-      return 0.0;
-    }
-  }
-
-  /// Extract product type from name
-  String _extractProductType(String productName) {
-    final lower = productName.toLowerCase();
-    if (lower.contains('drink') || lower.contains('beverage')) return 'Beverages';
-    if (lower.contains('meat') || lower.contains('seafood')) return 'Meat & Seafood';
-    if (lower.contains('vegetable') || lower.contains('fruit')) return 'Produce';
-    if (lower.contains('dairy') || lower.contains('milk')) return 'Dairy';
-    if (lower.contains('snack') || lower.contains('chip')) return 'Snacks';
-    if (lower.contains('bakery') || lower.contains('bread')) return 'Bakery';
-    return 'General';
   }
 }

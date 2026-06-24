@@ -63,9 +63,6 @@
       <a href="#" class="nav-item" data-page="products" onclick="showPage('products',this)">
         <span class="nav-icon">📦</span><span>Products</span>
       </a>
-      <a href="#" class="nav-item" data-page="prices" onclick="showPage('prices',this)">
-        <span class="nav-icon">💰</span><span>Prices</span>
-      </a>
       <a href="#" class="nav-item" data-page="retailers" onclick="showPage('retailers',this)">
         <span class="nav-icon">🏪</span><span>Retailers</span>
       </a>
@@ -182,26 +179,42 @@
           <h1>Products</h1>
           <p>Manage all grocery products in the system.</p>
         </div>
-        <button class="btn-primary" onclick="openModal('add-product-modal')">+ Add Product</button>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <button class="btn-danger" id="delete-selected-btn" onclick="deleteSelectedProducts()" style="display:none; align-items:center; gap:6px;">🗑 Delete Selected (0)</button>
+          <button class="btn-primary" onclick="openModal('add-product-modal')">+ Add Product</button>
+          <button class="btn-primary" onclick="openModal('add-price-modal')">+ Add Price</button>
+        </div>
       </div>
 
       <div class="card">
         <div class="card-header">
           <input type="text" class="table-search" placeholder="Search products…" oninput="filterTable('products-table', this.value)" />
-          <div class="filter-row">
-            <select onchange="filterByColumn('products-table', 2, this.value)">
+          <div class="filter-row" style="display:flex; gap:12px;">
+            <select onchange="filterByColumn('products-table', 4, this.value)">
               <option value="">All Brands</option>
-              <option>Nestlé</option>
-              <option>Aik Cheong</option>
-              <option>Faiza</option>
-              <option>Unilever</option>
+              <option>NESTLE</option>
+              <option>BURUH</option>
+              <option>FAIZA</option>
+              <option>KNIFE</option>
+              <option>VESAWIT</option>
+              <option>NATUREL</option>
+              <option>CSR</option>
+              <option>RED EAGLE</option>
+              <option>SUMO</option>
+              <option>AIK CHEONG</option>
+              <option>BOH</option>
+              <option>JATI</option>
+              <option>MAGGI</option>
+              <option>OYOSHI</option>
+              <option>SUNLIGHT</option>
+              <option>SUNFLOWER</option>
+              <option>OTHER</option>
             </select>
-            <select onchange="filterByColumn('products-table', 3, this.value)">
-              <option value="">All Types</option>
-              <option>Drinks</option>
-              <option>Instant Noodles</option>
-              <option>Rice & Grains</option>
-              <option>Household Cleaning</option>
+            <select onchange="filterByColumn('products-table', 5, this.value)">
+              <option value="">All Categories</option>
+              <option>Beverages</option>
+              <option>Cooking Ingredients</option>
+              <option>Food</option>
             </select>
           </div>
         </div>
@@ -209,7 +222,15 @@
           <table class="data-table" id="products-table">
             <thead>
               <tr>
-                <th>ID</th><th>Product</th><th>Brand</th><th>Product Type</th><th>Actions</th>
+                <th style="width: 40px; text-align: center;"><input type="checkbox" id="select-all-products" onclick="toggleAllProductSelection(this.checked)" style="cursor:pointer;" /></th>
+                <th onclick="sortProducts('id')" style="cursor:pointer; user-select:none;">ID <span id="sort-icon-id" style="opacity:0.4">↕</span></th>
+                <th onclick="sortProducts('name')" style="cursor:pointer; user-select:none;">Product <span id="sort-icon-name" style="opacity:0.4">↕</span></th>
+                <th onclick="sortProducts('retailerName')" style="cursor:pointer; user-select:none;">Retailer <span id="sort-icon-retailerName" style="opacity:0.4">↕</span></th>
+                <th onclick="sortProducts('category')" style="cursor:pointer; user-select:none;">Brand <span id="sort-icon-category" style="opacity:0.4">↕</span></th>
+                <th onclick="sortProducts('productType')" style="cursor:pointer; user-select:none;">Category <span id="sort-icon-productType" style="opacity:0.4">↕</span></th>
+                <th onclick="sortProducts('price')" style="cursor:pointer; user-select:none;">Price (RM) <span id="sort-icon-price" style="opacity:0.4">↕</span></th>
+                <th onclick="sortProducts('updatedAt')" style="cursor:pointer; user-select:none;">Updated <span id="sort-icon-updatedAt" style="opacity:0.4">↕</span></th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="products-tbody"></tbody>
@@ -218,30 +239,7 @@
       </div>
     </section>
 
-    <!-- ── PRICES PAGE ─────────────────────────────────────────────────── -->
-    <section class="page" id="page-prices">
-      <div class="page-header">
-        <div>
-          <h1>Prices</h1>
-          <p>View and update product prices across retailers.</p>
-        </div>
-        <button class="btn-primary" onclick="openModal('add-price-modal')">+ Add Price</button>
-      </div>
 
-      <div class="card">
-        <div class="card-header">
-          <input type="text" class="table-search" placeholder="Search prices…" oninput="filterTable('prices-table', this.value)" />
-        </div>
-        <div class="table-wrap">
-          <table class="data-table" id="prices-table">
-            <thead>
-              <tr><th>ID</th><th>Product</th><th>Retailer</th><th>Price (RM)</th><th>Updated</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="prices-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
 
     <!-- ── RETAILERS PAGE ─────────────────────────────────────────────── -->
     <section class="page" id="page-retailers">
@@ -556,15 +554,15 @@
         <div class="form-group"><label>Product Name</label><input type="text" id="new-product-name" placeholder="e.g. Milo Activ-Go" /></div>
         <div class="form-group"><label>Description</label><input type="text" id="new-product-desc" placeholder="e.g. Chocolate malt drink - 400g" /></div>
         <div class="form-group">
-          <label>Brand (Category)</label>
+          <label>Brand</label>
           <select id="new-product-brand">
-            <option>Nestlé</option><option>Aik Cheong</option><option>Faiza</option><option>Unilever</option>
+            <option>NESTLE</option><option>BURUH</option><option>FAIZA</option><option>KNIFE</option><option>VESAWIT</option><option>NATUREL</option><option>CSR</option><option>RED EAGLE</option><option>SUMO</option><option>AIK CHEONG</option><option>BOH</option><option>JATI</option><option>MAGGI</option><option>OYOSHI</option><option>SUNLIGHT</option><option>SUNFLOWER</option><option>OTHER</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Product Type</label>
+          <label>Category</label>
           <select id="new-product-type">
-            <option>Drinks</option><option>Instant Noodles</option><option>Rice & Grains</option><option>Household Cleaning</option>
+            <option>Beverages</option><option>Cooking Ingredients</option><option>Food</option>
           </select>
         </div>
         <div class="form-group"><label>Image URL</label><input type="text" id="new-product-image" placeholder="https://example.com/image.png" /></div>
@@ -642,12 +640,12 @@
         <div class="form-group"><label>Description</label><input type="text" id="edit-product-desc" /></div>
         <div class="form-group"><label>Brand</label>
           <select id="edit-product-brand">
-            <option>Nestlé</option><option>Aik Cheong</option><option>Faiza</option><option>Unilever</option>
+            <option>NESTLE</option><option>BURUH</option><option>FAIZA</option><option>KNIFE</option><option>VESAWIT</option><option>NATUREL</option><option>CSR</option><option>RED EAGLE</option><option>SUMO</option><option>AIK CHEONG</option><option>BOH</option><option>JATI</option><option>MAGGI</option><option>OYOSHI</option><option>SUNLIGHT</option><option>SUNFLOWER</option><option>OTHER</option>
           </select>
         </div>
-        <div class="form-group"><label>Product Type</label>
+        <div class="form-group"><label>Category</label>
           <select id="edit-product-type">
-            <option>Drinks</option><option>Instant Noodles</option><option>Rice & Grains</option><option>Household Cleaning</option>
+            <option>Beverages</option><option>Cooking Ingredients</option><option>Food</option>
           </select>
         </div>
         <div class="form-group"><label>Image URL</label><input type="text" id="edit-product-image" /></div>
@@ -710,7 +708,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <script src="firebase-config.js?v=1.0.5"></script>
-  <script src="app.js?v=1.0.5"></script>
+  <script src="firebase-config.js?v=1.1.0"></script>
+  <script src="app.js?v=1.1.2"></script>
 </body>
 </html>

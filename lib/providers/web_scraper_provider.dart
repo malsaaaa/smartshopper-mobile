@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smartshopper_mobile/providers/firestore_user_provider.dart';
 import 'package:smartshopper_mobile/services/web_scraper_service.dart';
 
 /// Provider for WebScraperService singleton
@@ -9,7 +10,14 @@ final webScraperServiceProvider = Provider<WebScraperService>((ref) {
 });
 
 /// Provider to manage the remote scraper listener in the background
-final webScraperListenerProvider = Provider<WebScraperListener>((ref) {
+final webScraperListenerProvider = Provider<WebScraperListener?>((ref) {
+  final userAsync = ref.watch(firestoreUserNotifierProvider);
+  final isAdmin = userAsync.value?.isAdmin ?? false;
+
+  if (!isAdmin) {
+    return null;
+  }
+
   final service = ref.watch(webScraperServiceProvider);
   final listener = WebScraperListener(service);
   listener.start();
