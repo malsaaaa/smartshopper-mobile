@@ -228,7 +228,34 @@ class _FirebaseAuthScreenState extends ConsumerState<FirebaseAuthScreen> {
                   obscureText: true,
                   enabled: !isLoading,
                 ),
-                const SizedBox(height: AppSpacing.xl),
+                const SizedBox(height: AppSpacing.sm),
+
+                // Forgot Password Link (only for Sign In mode)
+                if (!isSignUp) ...[
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => Navigator.pushNamed(context, '/forgot-password'),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Forgot Password?',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppTheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ] else ...[
+                  const SizedBox(height: AppSpacing.xl),
+                ],
 
                 // Submit button
                 PrimaryButton(

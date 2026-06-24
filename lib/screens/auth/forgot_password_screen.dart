@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
+import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 
 /// Forgot Password screen for email-based password reset
-class ForgotPasswordScreen extends StatefulWidget {
+class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   late TextEditingController _emailController;
   bool _isLoading = false;
   bool _emailSent = false;
@@ -35,7 +37,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   /// Handle password reset request
-  void _handleResetPassword() {
+  void _handleResetPassword() async {
     final email = _emailController.text.trim();
 
     // Clear previous error
@@ -55,15 +57,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     // Start loading
     setState(() => _isLoading = true);
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      final authService = ref.read(firestoreAuthServiceProvider);
+      await authService.sendPasswordResetEmail(email);
       if (mounted) {
         setState(() {
           _isLoading = false;
           _emailSent = true;
         });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    }
   }
 
   @override
@@ -164,10 +174,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       SecondaryButton(
                         label: 'Back to Login',
                         onPressed: () {
-                          Navigator.pushReplacementNamed(
-                            context,
-                            '/login',
-                          );
+                          Navigator.pop(context);
                         },
                       ),
                     ],
