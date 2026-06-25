@@ -569,7 +569,7 @@ class _LoginPrompt extends StatelessWidget {
                 textAlign: TextAlign.center),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Log in to add products to your cart',
+              'Sign in to add products to your cart',
               style: AppTypography.bodyMedium
                   .copyWith(color: AppTheme.textSecondary),
               textAlign: TextAlign.center,
