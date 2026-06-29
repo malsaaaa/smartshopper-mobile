@@ -1,188 +1,127 @@
 # SmartShopper Mobile
 
-A comprehensive Flutter-based shopping assistant application that helps users manage their shopping efficiently with budget tracking, price comparison, location-based retailer discovery, and smart shopping list management.
+A comprehensive, production-ready Flutter-based smart shopping assistant application. SmartShopper helps users make cost-effective grocery choices by comparing basket prices across major Malaysian retailers (Mydin, Lotus's, and myAEON2go), calculating distance-aware travel costs, tracking budgets, and providing real-time price alerts.
+
+---
 
 ## 📱 Features
 
-- **User Authentication**: Firebase Auth with Google Sign-in support
-- **Budget Management**: Track spending with budget alerts and history
-- **Shopping Lists**: Create and manage shopping lists with items
-- **Product Search**: Search and compare products across retailers
-- **Price Comparison**: View prices from different retailers in your area
-- **Location Services**: Find nearby retailers with geolocation
-- **Image Management**: Upload and manage product/receipt images via Firebase Storage
-- **Notifications**: Real-time shopping and budget alerts
-- **Dark Mode Support**: Full light and dark theme support
-- **User Profiles**: Manage account settings and preferences
+### 1. Smart Shopping Recommendations & Price Comparison
+* **Basket-Level Comparison**: Evaluates a user's entire shopping list rather than individual items.
+* **Cheaper-Alternative Fallbacks**: If a retailer does not carry a specific item on the list, the algorithm applies a fallback price (the cheapest available price from other stores) to calculate a realistic total comparison.
+* **Stocking Ratios**: Displays a clear "X of Y items available" indicator so the user knows if a retailer carries the entire list.
+* **Favored Product Management**: Easily add and remove items from favorites, with automated pruning of orphaned database records.
+
+### 2. Geolocation & Net Savings Calculator
+* **Distance Tracking**: Uses GPS coordinates and the Haversine formula to compute the exact distance from the user's location to the nearest branches in Melaka (Mydin Jasin, Lotus's Melaka, and AEON Melaka).
+* **Fuel Cost Math**: Computes round-trip fuel cost dynamically based on:
+  * **Current RON 95 Price**: RM 3.47 per liter
+  * **Average Fuel Efficiency**: 12.0 km/liter (representing typical B-segment city cars like the Perodua Myvi or Proton Saga).
+* **Net Savings Indicator**: Subtracts the estimated travel cost from grocery price savings, showing the user their true **Net Save** or **Loss** if they drive to a further store.
+
+### 3. Automated Web Scraping Pipeline
+* **API-Level Scraping**: Bypasses slow and fragile HTML rendering by querying direct REST API endpoints of the retailers (Lotus's O2O API, MyDin Magento API, and AEON React storefront payloads).
+* **Codebase Unification**: Written entirely in Dart and compiled inside the application. No external Python servers, microservices, or headless browsers (Selenium/Puppeteer) are required to run the scraper.
+* **Web Scraper Control Panel**: Admins can trigger and monitor live scraping directly within the mobile application.
+
+### 4. Technical Resilience
+* **Stable ID Mapping**: Implements a DJB2 hashing algorithm to convert alphanumeric string document IDs (common in scraped retail data) into unique, stable 31-bit Dart integers, avoiding ID collisions.
+* **Robust Date Parser**: A dynamic wrapper parses both native Firestore `Timestamp` objects and ISO 8601 string dates, protecting the app against runtime `NoSuchMethodError` crashes.
+* **Forgot Password Flow**: Fully integrated password reset flow backed by Firebase Authentication.
+
+---
 
 ## 🏗️ Architecture
 
 ### Tech Stack
-
-- **Framework**: Flutter 3.7.2
-- **State Management**: Riverpod 2.5.0
-- **Backend**: Firebase (Authentication, Firestore, Storage)
-- **Additional Libraries**:
-  - `google_sign_in` - Social authentication
-  - `geolocator` - Location services
-  - `image_picker` - Device image selection
-  - `permission_handler` - Runtime permissions
-  - `url_launcher` - External link handling
+* **Framework**: Flutter (Dart)
+* **State Management**: Riverpod 2.5.0 (reactive state, cart, budgets, auth, lists)
+* **Backend**: Firebase (Authentication, Firestore Database, Storage)
+* **Design System**: Custom app theme built on top of Material 3
 
 ### Project Structure
-
 ```
 lib/
-├── config/          # App configuration, theme, routes, Firebase setup
-├── screens/         # UI screens (auth, home, products, profile, shopping)
-├── providers/       # Riverpod state management providers
-├── services/        # Firebase and business logic services
-├── widgets/         # Reusable UI components
-├── data/            # Mock data and data models
-├── utils/           # Utility functions and helpers
-└── main.dart        # Application entry point
+├── config/          # Central routes, Material 3 theme configurations, Firebase setup
+├── data/            # Data models (Product, Price, Retailer, Budget, User) and mock data
+├── providers/       # Riverpod state management and authentication providers
+├── screens/         # UI screens (auth, home, admin scraper control, notifications, profile)
+├── services/        # Business logic services (Firebase, Location, Notifications)
+│   └── scrapers/    # Targeted API-level scrapers (Mydin, myAEON2go, Lotus)
+├── utils/           # Helper scripts (stable ID hashing, dynamic date parsing, validators)
+├── widgets/         # Reusable design components and UI cards
+└── main.dart        # Main app entry point
 ```
 
-### Key Components
-
-| Component | Purpose |
-|-----------|---------|
-| **Providers** | Manage app state reactively with Riverpod (cart, auth, budget, shopping lists, products, etc.) |
-| **Services** | Handle Firebase operations and business logic |
-| **Screens** | Authentication, home dashboard, product browsing, shopping, profile management |
-| **Widgets** | Reusable UI components for consistent design |
-| **Config** | App theme, routing, and Firebase initialization |
-
-## 🔐 Security
-
-- Firestore security rules enforce user data isolation
-- Each user can only access their own data (profile, budgets, shopping lists)
-- Default deny policy for unauthorized access
-- Secure Firebase authentication with sign-in verification
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+* **Flutter SDK**: `^3.7.2`
+* **Dart SDK**: `^3.7.2`
+* **Android SDK**: API 21+ (Lollipop or higher)
+* **Firebase Project**: Configured with Firestore, Storage, and Email/Google Auth enabled.
 
-- Flutter SDK: ^3.7.2
-- Dart SDK: ^3.7.2
-- Android SDK: API 21+
-- Firebase project configured
-- Google Cloud project with OAuth credentials
+### Installation & Launch
 
-### Installation
-
-1. **Clone the repository**
+1. **Clone the repository**:
    ```bash
    git clone <repository-url>
    cd smartshopper_mobile
    ```
 
-2. **Install dependencies**
+2. **Install project dependencies**:
    ```bash
    flutter pub get
    ```
 
-3. **Configure Firebase**
-   - Ensure `google-services.json` is placed in `android/app/`
-   - Firebase credentials should be configured in `lib/config/firebase_config.dart`
-   - Update Firestore security rules from `firestore.rules`
+3. **Configure Platform Credentials**:
+   * Place your `google-services.json` inside the `android/app/` folder.
+   * Add web-specific Firebase keys inside `lib/config/firebase_config.dart`.
+   * Apply database rules from `firestore.rules`.
 
-4. **Generate launchers icons**
+4. **Run the Application**:
    ```bash
-   flutter pub run flutter_launcher_icons:main
-   ```
-
-5. **Run the application**
-   ```bash
+   # To run on a connected Android/iOS device
    flutter run
+   
+   # To test on Chrome
+   flutter run -d chrome
    ```
 
-## 📋 Available Scripts
+---
+
+## 📋 Commands & Scripts
 
 | Command | Purpose |
 |---------|---------|
-| `flutter pub get` | Fetch all dependencies |
-| `flutter run` | Run app in development mode |
-| `flutter build apk` | Build Android APK release |
-| `flutter build appbundle` | Build Android App Bundle for Play Store |
-| `flutter analyze` | Run static analysis with lints |
-| `flutter test` | Run unit and widget tests |
+| `flutter pub get` | Fetch and update pub dependencies |
+| `flutter run` | Run the application in debug mode |
+| `flutter analyze` | Run static code analysis |
+| `flutter test` | Run unit and widget test suite |
+| `flutter build apk` | Package a production Android APK |
+| `flutter build web` | Build optimized web application bundle |
 
-## 🔧 Configuration
-
-### Theme Configuration
-Located in `lib/config/app_theme.dart` - Customize colors, fonts, and material design tokens.
-
-### Routing
-Located in `lib/config/routes.dart` - All app routes are centrally configured here.
-
-### Firebase Setup
-Located in `lib/config/firebase_config.dart` - Initialize and configure Firebase services.
-
-## 📦 Admin Dashboard
-
-A companion web admin dashboard is available in the `smartshopper_admin/` directory for:
-- User management
-- Product catalog administration
-- Retailer management
-- System analytics
-- Notification payload composition for Firebase Console or external backends
-
-Build and deploy separately as a web application.
-
-## 💸 Low-Cost Deployment
-
-The lowest-cost setup for this repo is:
-- Firestore rules
-- Hosting for the admin dashboard
-
-The dashboard notification page is intentionally usable without Cloud Functions. It copies FCM payloads to your clipboard so you can paste them into Firebase Console and avoid Blaze billing.
-
-Deploy with:
-```bash
-firebase deploy --only firestore:rules,hosting
-```
+---
 
 ## 🧪 Testing
 
+The project includes unit and formatting tests to ensure calculation and alert logic remain stable:
+* **Weekly Digest**: Tests digest creation and total savings formatting.
+* **Budget Limits**: Asserts that notifications trigger precisely when limits are exceeded.
+* **Price Drops**: Tests real-time alert thresholds when prices decrease.
+
+Run the test suite using:
 ```bash
 flutter test
 ```
 
-Widget tests are located in the `test/` directory.
+---
 
-## 📄 Firestore Schema
+## 📦 Admin Dashboard
 
-### Users Collection
-```
-users/{userId}
-├── userProfile data
-├── budgets/{budgetId}
-│   ├── budget details
-│   └── history/{historyId}
-└── shoppingLists/{listId}
-    └── items/{itemId}
-```
-
-## 🤝 Contributing
-
-1. Create a feature branch (`git checkout -b feature/amazing-feature`)
-2. Commit your changes (`git commit -m 'Add amazing feature'`)
-3. Push to the branch (`git push origin feature/amazing-feature`)
-4. Open a Pull Request
-
-## 📜 License
-
-This project is private and not for public distribution.
-
-## 📚 Resources
-
-- [Flutter Documentation](https://docs.flutter.dev/)
-- [Riverpod Documentation](https://riverpod.dev/)
-- [Firebase Flutter Guide](https://firebase.flutter.dev/)
-- [Material Design](https://m3.material.io/)
-
-## 📞 Support
-
-For issues and questions, please contact the development team or create an issue in the project repository.
+A standalone companion web application is located in the `smartshopper_admin/` directory. It is built using HTML5, CSS3, and JavaScript, communicating directly with your Firebase backend:
+* **Product Catalog**: Manage scraper outputs, pricing records, and product details.
+* **Retailer Coordinates**: Adjust latitude and longitude values for geolocated stores.
+* **Low-Cost Notifications**: Features a layout to copy JSON push notification payloads to your clipboard, allowing you to trigger FCM messages from the free Firebase Console without requiring paid Cloud Functions.
