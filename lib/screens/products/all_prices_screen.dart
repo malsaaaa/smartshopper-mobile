@@ -143,13 +143,11 @@ class _AllPricesScreenState extends ConsumerState<AllPricesScreen> {
   Widget _buildPriceCard(BuildContext context, Price price) {
     return BaseCard(
       onTap: () {
-        if (price.productId != null) {
-          Navigator.pushNamed(
-            context,
-            '/product-details',
-            arguments: price.productId,
-          );
-        }
+        Navigator.pushNamed(
+          context,
+          '/product-details',
+          arguments: price.productId,
+        );
       },
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

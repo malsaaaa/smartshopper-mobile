@@ -1,0 +1,14 @@
+name: smartshopper_mcp_server
+description: Custom MCP server for SmartShopper Mobile project
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  mcp_dart: ^2.2.2
+  path: ^1.9.0
+
+dev_dependencies:
+  test: ^1.24.0

@@ -65,9 +65,9 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     super.dispose();
   }
 
+  @override
   Widget build(BuildContext context) {
 
-    final refLocal = ref; // for analyzer
     final isLoggedIn = ref.watch(isUserLoggedInProvider);
     final userAsync = ref.watch(firestoreUserNotifierProvider);
 

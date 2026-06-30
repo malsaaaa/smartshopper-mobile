@@ -8,34 +8,29 @@ import 'package:smartshopper_mobile/services/scrapers/lotus_scraper.dart';
 /// Web scraper service that manages all retailer scrapers
 /// Coordinates scraping across multiple retailers and stores data in Firestore
 class WebScraperService {
+  // Firestore instance
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   
-  // Scrapers for each retailer.
-  // Keys are the *normalized* retailer name (lowercase, alphanumeric only).
-  // e.g. "Lotus's" → "lotuss", "myAEON2go" → "myaeon2go"
+  // Registry of active scrapers by normalized key
   late final Map<String, BaseScraper> _scrapers = {
     'mydin': MyDinScraper(),
     'myaeon2go': MyAeon2GoScraper(),
     'lotuss': LotusScraper(),
   };
 
-  /// Get all available scrapers
+  /// Get list of scrapers
   Map<String, BaseScraper> getScrapers() => _scrapers;
 
-  /// Get scraper by retailer name.
-  /// The name is normalized (lowercase, non-alphanumeric stripped) before lookup
-  /// so display names like "Lotus's" and "myAEON2go" map correctly.
+  /// Get scraper by name (normalizes input key)
   BaseScraper? getScraper(String retailerName) {
     return _scrapers[_normalizeKey(retailerName)];
   }
 
-  /// Normalize a retailer display name to a map key:
-  /// lowercase + strip any character that is not a-z or 0-9.
+  /// Convert retailer name to standard map key (lowercase, alphanumeric only)
   String _normalizeKey(String name) =>
       name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
-  /// Scrape all retailers and store results in Firestore
-  /// Returns count of scraped and stored products
+  /// Scrape all registered retailers
   Future<Map<String, int>> scrapeAllRetailers({
     bool storeInFirestore = true,
     int? pageNumber,
@@ -68,7 +63,7 @@ class WebScraperService {
     return results;
   }
 
-  /// Scrape a single retailer
+  /// Trigger scrape for a single retailer
   Future<int> scrapeRetailer(
     String retailerName, {
     bool storeInFirestore = true,
@@ -90,6 +85,7 @@ class WebScraperService {
     );
   }
 
+  /// Log job progress/state to Firestore
   Future<void> _log(String level, String retailer, String message) async {
     try {
       await _db.collection('scraper_logs').add({
@@ -103,7 +99,7 @@ class WebScraperService {
     }
   }
 
-  /// Internal scrape logic for a single retailer
+  /// Internal job run logic for a single retailer
   Future<int> _scrapeRetailer(
     String retailerName,
     BaseScraper scraper, {
@@ -143,7 +139,7 @@ class WebScraperService {
 
       await _log('INFO', displayRetailer, 'Scraped ${products.length} product prices. Writing updated prices to Firestore…');
 
-      // Store products and prices
+      // Store products and prices in database
       if (storeInFirestore) {
         await _storeProducts(products);
       }
@@ -157,7 +153,7 @@ class WebScraperService {
     }
   }
 
-  /// Store or update retailer info in Firestore
+  /// Save retailer info to database
   Future<void> _storeRetailer(Retailer retailer) async {
     try {
       await _db.collection('retailers').doc(retailer.id.toString()).set({
@@ -177,12 +173,10 @@ class WebScraperService {
     }
   }
 
-  /// Store products and their prices in Firestore.
-  ///
-  /// Firestore batches are limited to 500 writes. Since each product needs
-  /// 2 writes (product doc + price doc), we chunk at 200 pairs per batch.
+  /// Save products and prices using Firestore batch writes
   Future<void> _storeProducts(List<(Product, Price)> products) async {
-    const int chunkSize = 200; // 200 pairs × 2 writes = 400 writes per batch
+    // Batch operations chunk size (max 500 writes limit, using 200 pairs = 400 writes)
+    const int chunkSize = 200;
     int totalStored = 0;
 
     for (int start = 0; start < products.length; start += chunkSize) {
@@ -194,8 +188,7 @@ class WebScraperService {
         final batch = _db.batch();
 
         for (final (product, price) in chunk) {
-          // Use a stable document ID so re-runs update rather than duplicate.
-          // Format: <retailerId>_<normalized-name-hash>
+          // Generate a unique, stable doc ID for product
           final stableProductId = '${price.retailerId}_${_stableKey(product.name)}';
 
           final productDoc = _db.collection('products').doc(stableProductId);
@@ -214,7 +207,7 @@ class WebScraperService {
             SetOptions(merge: true),
           );
 
-          // Price doc ID: retailerId_stableProductId
+          // Save associated price entry
           final priceId = '${price.retailerId}_$stableProductId';
           final priceDoc = _db.collection('prices').doc(priceId);
           batch.set(
@@ -244,29 +237,25 @@ class WebScraperService {
     print('✅ Stored $totalStored / ${products.length} products in total');
   }
 
-  /// Create a short, stable key from a product name for use as a Firestore
-  /// document ID. Strips non-alphanumeric characters and lowercases.
+  /// Generate clean product key from name
   String _stableKey(String name) {
-    // Keep alphanumerics + spaces, collapse whitespace, lowercase, replace spaces
     final cleaned = name
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
         .trim()
         .replaceAll(RegExp(r'\s+'), '_');
-    // Truncate to 80 chars to stay well within Firestore ID limits
     return cleaned.length > 80 ? cleaned.substring(0, 80) : cleaned;
   }
 
-  /// Get products from a specific retailer
+  /// Fetch product list for specific retailer
   Future<List<Product>> getProductsByRetailer(String retailerName) async {
     try {
-      // Get retailer ID from scraper
       final scraper = _scrapers[retailerName.toLowerCase()];
       if (scraper == null) return [];
 
       final retailerInfo = scraper.getRetailerInfo();
 
-      // Get prices for this retailer
+      // Query price records by retailer ID
       final pricesSnapshot = await _db
           .collection('prices')
           .where('retailerId', isEqualTo: retailerInfo.id.toString())
@@ -274,7 +263,7 @@ class WebScraperService {
 
       if (pricesSnapshot.docs.isEmpty) return [];
 
-      // Get unique product IDs and fetch products
+      // Collect product document references
       final productIds = <String>{};
       for (final doc in pricesSnapshot.docs) {
         final productId = doc['productId']?.toString();
@@ -283,6 +272,7 @@ class WebScraperService {
         }
       }
 
+      // Fetch product models from database
       final products = <Product>[];
       for (final productId in productIds) {
         final productDoc = await _db.collection('products').doc(productId).get();
@@ -298,7 +288,7 @@ class WebScraperService {
     }
   }
 
-  /// Get scraping statistics
+  /// Retrieve database metrics (counts)
   Future<Map<String, dynamic>> getScrapingStats() async {
     try {
       final retailersSnapshot = await _db.collection('retailers').get();
@@ -317,7 +307,7 @@ class WebScraperService {
     }
   }
 
-  /// Clear all scraped data from Firestore (for testing)
+  /// Purge all scraped collections from Firestore
   Future<void> clearScrapedData() async {
     try {
       print('⚠️ Clearing all scraped data...');

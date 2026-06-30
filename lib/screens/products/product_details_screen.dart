@@ -138,14 +138,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           Consumer(
             builder: (context, ref, _) {
               final favs = ref.watch(favoritesProvider);
-              final isFav = favs.contains(product?.id ?? -1);
+              final isFav = favs.contains(product.id);
               return IconButton(
                 icon: Icon(isFav ? Icons.favorite : Icons.favorite_border),
                 color: isFav ? AppTheme.error : null,
                 onPressed: () {
-                  if (product != null) {
-                    ref.read(favoritesProvider.notifier).toggleFavorite(product.id);
-                  }
+                  ref.read(favoritesProvider.notifier).toggleFavorite(product.id);
                 },
               );
             },

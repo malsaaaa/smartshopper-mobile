@@ -8,12 +8,17 @@ import 'base_scraper.dart';
 /// MyDin retailer scraper
 /// Scrapes product information from MyDin's Magento API.
 class MyDinScraper extends BaseScraper {
+  // Target website and API base URLs
   static const String baseUrl = 'https://mydin.my';
   static const String apiBaseUrl = 'https://myapi.mydin.my/magento';
+  
+  // Static configurations
   static const String retailerName = 'MyDin';
   static const int retailerId = 1;
   static const int defaultCategoryId = 1222;
   static const int defaultPageSize = 48;
+  
+  // Search keywords used for background updates
   static const List<String> searchTerms = [
     'cooking oil 5kg',
     'milo 1kg',
@@ -24,6 +29,7 @@ class MyDinScraper extends BaseScraper {
 
   @override
   Retailer getRetailerInfo() {
+    // Return metadata for Mydin
     return Retailer(
       id: retailerId,
       name: retailerName,
@@ -40,7 +46,7 @@ class MyDinScraper extends BaseScraper {
     String? category,
   }) async {
     try {
-      // If a specific category or query is passed (e.g. from manual search/filter)
+      // Scrape specific category if provided
       if (category != null && category.isNotEmpty) {
         final products = await _fetchProducts(
           search: category,
@@ -51,7 +57,7 @@ class MyDinScraper extends BaseScraper {
         return products;
       }
 
-      // Default background run: scrape the 5 target search keywords
+      // Default background run: loop through keywords
       final allProducts = <(Product, Price)>[];
 
       for (final term in searchTerms) {
@@ -69,7 +75,7 @@ class MyDinScraper extends BaseScraper {
           print('⚠️ MyDin: No products found for "$term"');
         }
 
-        // Polite delay of 500ms between search requests
+        // Delay 500ms between search requests
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
@@ -84,9 +90,11 @@ class MyDinScraper extends BaseScraper {
   @override
   Future<(Product, Price)?> scrapeProductByUrl(String url) async {
     try {
+      // Get URL key from path
       final slug = _extractProductSlug(url);
       if (slug.isEmpty) return null;
 
+      // Query product directly by its URL key
       final products = await _fetchProducts(
         filter: {
           'url_key': {
@@ -110,12 +118,14 @@ class MyDinScraper extends BaseScraper {
     return searchTerms;
   }
 
+  /// Call Mydin backend API
   Future<List<(Product, Price)>> _fetchProducts({
     Map<String, dynamic>? filter,
     String? search,
     required int pageSize,
     required int currentPage,
   }) async {
+    // Setup request body matching Magento scheme
     final payload = [
       {
         if (filter != null) 'filter': filter,
@@ -134,6 +144,7 @@ class MyDinScraper extends BaseScraper {
       },
     ];
 
+    // Send GET request with JSON-encoded parameters
     final response = await http
         .get(
           Uri.parse('$apiBaseUrl/products?body=${Uri.encodeComponent(jsonEncode(payload))}'),
@@ -145,6 +156,7 @@ class MyDinScraper extends BaseScraper {
         )
         .timeout(const Duration(seconds: 30));
 
+    // Handle failure
     if (response.statusCode != 200) {
       print('❌ MyDin API failed: ${response.statusCode}');
       return [];
@@ -153,6 +165,7 @@ class MyDinScraper extends BaseScraper {
     return _parseProductsResponse(response.body);
   }
 
+  /// Parse API JSON to model list
   List<(Product, Price)> _parseProductsResponse(String body) {
     final decoded = jsonDecode(body);
     final items = _extractItems(decoded);
@@ -171,6 +184,7 @@ class MyDinScraper extends BaseScraper {
     return results;
   }
 
+  /// Walk JSON tree to extract item elements
   List<Map<String, dynamic>> _extractItems(dynamic decoded) {
     final items = <Map<String, dynamic>>[];
 
@@ -201,6 +215,7 @@ class MyDinScraper extends BaseScraper {
     return items;
   }
 
+  /// Convert JSON element to Product model
   Product _mapProduct(Map<String, dynamic> item) {
     final id = _extractInt(item['id']) ?? DateTime.now().millisecondsSinceEpoch;
     final name = _firstNonEmptyString([
@@ -230,6 +245,7 @@ class MyDinScraper extends BaseScraper {
     );
   }
 
+  /// Convert JSON element to Price model
   Price _mapPrice(Map<String, dynamic> item, int productId) {
     final id = DateTime.now().millisecondsSinceEpoch;
     final price = _extractPrice(item['price_range']);
@@ -247,7 +263,7 @@ class MyDinScraper extends BaseScraper {
     );
   }
 
-  /// Extract numeric price from nested API response objects.
+  /// Extract double price value from nested maps or text
   double _extractPrice(dynamic value) {
     try {
       if (value == null) {
@@ -289,11 +305,13 @@ class MyDinScraper extends BaseScraper {
     }
   }
 
+  // Safe parse integer
   int? _extractInt(dynamic value) {
     if (value is int) return value;
     return int.tryParse(value?.toString() ?? '');
   }
 
+  // Safe map nested string
   String _mapString(dynamic value, String key) {
     if (value is Map) {
       final map = value.cast<String, dynamic>();
@@ -305,6 +323,7 @@ class MyDinScraper extends BaseScraper {
     return '';
   }
 
+  // Find first non-empty string in candidates list
   String _firstNonEmptyString(List<dynamic> values) {
     for (final value in values) {
       final text = value?.toString().trim() ?? '';
@@ -315,10 +334,12 @@ class MyDinScraper extends BaseScraper {
     return '';
   }
 
+  // Strip HTML tags from text description
   String _stripHtml(String input) {
     return input.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
+  // Get product slug from URL path
   String _extractProductSlug(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return '';
@@ -329,17 +350,7 @@ class MyDinScraper extends BaseScraper {
     return segments.last;
   }
 
-  /// Extract product type from name.
-  String _extractProductType(String productName) {
-    final lower = productName.toLowerCase();
-    if (lower.contains('drink') || lower.contains('beverage')) return 'Beverages';
-    if (lower.contains('meat') || lower.contains('chicken')) return 'Meat & Seafood';
-    if (lower.contains('vegetable') || lower.contains('fruit')) return 'Produce';
-    if (lower.contains('dairy') || lower.contains('milk')) return 'Dairy';
-    if (lower.contains('snack') || lower.contains('chip')) return 'Snacks';
-    return 'General';
-  }
-
+  // GraphQL fields requested from API
   static const String _productFields = '''
 items {
   id

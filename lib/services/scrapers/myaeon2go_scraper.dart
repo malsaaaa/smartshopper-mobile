@@ -354,28 +354,6 @@ class MyAeon2GoScraper extends BaseScraper {
     return '';
   }
 
-  String _extractProductType(Map<String, dynamic> item) {
-    final categories = item['product'] is Map ? (item['product']['categories'] as List?) : null;
-    if (categories != null && categories.isNotEmpty) {
-      final names = categories
-          .whereType<Map>()
-          .map((entry) => entry['name']?.toString() ?? '')
-          .where((value) => value.isNotEmpty)
-          .toList();
-      if (names.isNotEmpty) {
-        return names.last.replaceAll('_', ' ');
-      }
-    }
-
-    final text = _firstNonEmptyString([item['nameText'], item['extendedName']]);
-    final lower = text.toLowerCase();
-    if (lower.contains('chicken') || lower.contains('meat')) return 'Fresh Food';
-    if (lower.contains('fish') || lower.contains('salmon')) return 'Seafood';
-    if (lower.contains('drink') || lower.contains('coffee') || lower.contains('tea')) return 'Beverages';
-    if (lower.contains('bread') || lower.contains('bakery')) return 'Bakery';
-    if (lower.contains('snack')) return 'Snacks';
-    return 'General';
-  }
 
   int? _extractInt(dynamic value) {
     if (value is int) return value;
@@ -401,14 +379,5 @@ class MyAeon2GoScraper extends BaseScraper {
 
   String _stripHtml(String input) {
     return input.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
-  String _normalizeCategory(String category) {
-    return category
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
   }
 }

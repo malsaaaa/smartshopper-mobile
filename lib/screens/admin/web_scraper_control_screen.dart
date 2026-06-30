@@ -241,7 +241,7 @@ class _WebScraperControlScreenState extends ConsumerState<WebScraperControlScree
       });
 
       // Refresh statistics
-      ref.refresh(scrapingStatsProvider);
+      ref.invalidate(scrapingStatsProvider);
     } catch (e) {
       setState(() {
         _statusMessage = '❌ Error: $e';
@@ -265,7 +265,7 @@ class _WebScraperControlScreenState extends ConsumerState<WebScraperControlScree
       });
 
       // Refresh statistics
-      ref.refresh(scrapingStatsProvider);
+      ref.invalidate(scrapingStatsProvider);
     } catch (e) {
       setState(() {
         _statusMessage = '❌ Error scraping $retailerName: $e';
@@ -315,7 +315,7 @@ class _WebScraperControlScreenState extends ConsumerState<WebScraperControlScree
       });
 
       // Refresh statistics
-      ref.refresh(scrapingStatsProvider);
+      ref.invalidate(scrapingStatsProvider);
     } catch (e) {
       setState(() {
         _statusMessage = '❌ Error clearing data: $e';

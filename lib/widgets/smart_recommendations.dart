@@ -40,15 +40,17 @@ class SmartRecommendations extends ConsumerStatefulWidget {
       _SmartRecommendationsState();
 }
 
+// Normalize product name for matching (removes spaces, casing, and special chars)
 String _getProductMatchKey(String name) {
   return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 }
 
 class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
-  String? _selectedRetailer; // which retailer's breakdown to show
+  String? _selectedRetailer; // Selected retailer for visual breakdown
 
   @override
   Widget build(BuildContext context) {
+    // Get cart items and watch streams
     final cart = ref.watch(cartNotifierProvider).valueOrNull;
     final items = cart?.items ?? [];
     if (items.isEmpty) return const SizedBox.shrink();
@@ -61,38 +63,40 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
       data: (allPrices) => retailersAsync.when(
         data: (allRetailers) => productsAsync.when(
           data: (allProducts) {
-            // ── Compute per-item analysis ──────────────────────────────────────────
+            // ── Analyze each shopping list item ──
             final analyses = <_ItemAnalysis>[];
             for (final item in items) {
               if (item.productId == null) continue;
 
-              // Find the target product to get its name
+              // Find current product in catalog
               final targetProduct = allProducts.cast<Product?>().firstWhere(
                 (p) => p?.id == item.productId,
                 orElse: () => null,
               );
               if (targetProduct == null) continue;
 
-              // Find all product IDs that have the same normalized name key
+              // Find all product IDs with same normalized name
               final targetKey = _getProductMatchKey(targetProduct.name);
               final sameNameProductIds = allProducts
                   .where((p) => _getProductMatchKey(p.name) == targetKey)
                   .map((p) => p.id)
                   .toSet();
 
-              // Find all prices that belong to any of these matching product IDs
+              // Get all prices associated with these product IDs
               final prices = allPrices
                   .where((p) => sameNameProductIds.contains(p.productId))
                   .toList();
 
               if (prices.isEmpty) continue;
 
+              // Map price values by retailer name
               final priceByRetailer = <String, double>{};
               for (final p in prices) {
                 final name = p.retailer?.name ?? 'Unknown';
                 priceByRetailer[name] = p.price;
               }
 
+              // Identify cheapest retailer/price option
               final cheapest = prices.reduce((a, b) => a.price < b.price ? a : b);
               analyses.add(_ItemAnalysis(
                 cartItem: item,
@@ -103,7 +107,7 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
             }
             if (analyses.isEmpty) return const SizedBox.shrink();
 
-            // ── Compute retailer totals ──────────────────────────────────────────
+            // ── Compute basket totals for each retailer ──
             final Map<String, _RetailerSummary> summaries = {};
             for (final retailer in allRetailers) {
               double total = 0.0;
@@ -112,14 +116,16 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
               for (final a in analyses) {
                 final price = a.priceByRetailer[retailer.name];
                 if (price != null) {
+                  // Add actual store price * quantity
                   total += price * a.cartItem.quantity;
                   count++;
                 } else {
-                  // Fallback to cheapest alternative price if not stocked here
+                  // Fallback: use cheapest alternative price if not sold here
                   total += a.cheapestPrice * a.cartItem.quantity;
                 }
               }
 
+              // Create summary if retailer sells at least one item
               if (count > 0) {
                 summaries[retailer.name] = _RetailerSummary(
                   name: retailer.name,
@@ -130,6 +136,7 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
               }
             }
 
+            // Sort retailers from cheapest to most expensive
             final sorted = summaries.values.toList()
               ..sort((a, b) => a.total.compareTo(b.total));
             if (sorted.isEmpty) return const SizedBox.shrink();
@@ -138,11 +145,11 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
             final worst = sorted.last;
             final maxSavings = worst.total - best.total;
 
-            // Alternative total = cheapest price per item, mixed retailers
+            // Compute ideal total (cheapest price per item across all stores)
             final alternativeTotal = analyses.fold<double>(
                 0, (s, a) => s + a.cheapestPrice * a.cartItem.quantity);
 
-            // Default selected retailer
+            // Default breakdown to cheapest retailer
             _selectedRetailer ??= best.name;
             final selectedSummary =
                 summaries[_selectedRetailer] ?? summaries[best.name]!;

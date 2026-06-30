@@ -6,20 +6,18 @@ import 'package:smartshopper_mobile/utils/product_utils.dart';
 import 'base_scraper.dart';
 
 /// Lotus (Lotus's Superstore Malaysia) retailer scraper.
-///
-/// Lotus's website is a React SPA backed by a JSON REST API at
-/// `api-o2o.lotuss.com.my`. This scraper calls that API directly — no
-/// headless-browser required — using the same headers the web app sends.
+/// Scrapes products from Lotus's backend API directly.
 class LotusScraper extends BaseScraper {
+  // Base URL and target endpoints
   static const String _storeFront = 'https://www.lotuss.com.my/en';
   static const String _apiBase = 'https://api-o2o.lotuss.com.my';
   static const String _websiteCode = 'malaysia_hy';
-  static const int _pageSize = 30; // API supports up to 30 items per request
+  static const int _pageSize = 30;
 
   static const String retailerName = 'Lotus';
   static const int retailerId = 3;
 
-  // ── Fixed API headers (captured from live browser session) ──────────────────
+  // Fixed headers required by Lotus's API (captured from live web session)
   static const Map<String, String> _apiHeaders = {
     'accept': 'application/json, text/plain, */*',
     'accept-language': 'en',
@@ -34,16 +32,15 @@ class LotusScraper extends BaseScraper {
             '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   };
 
-  /// Default search terms used during the scheduled background scrape.
+  // Default background search keywords
   static const List<String> searchTerms = [
     'cooking oil',
     'milo',
   ];
 
-  // ── BaseScraper overrides ────────────────────────────────────────────────────
-
   @override
   Retailer getRetailerInfo() {
+    // Return metadata for Lotus
     return Retailer(
       id: retailerId,
       name: retailerName,
@@ -60,7 +57,7 @@ class LotusScraper extends BaseScraper {
     String? category,
   }) async {
     try {
-      // If a specific query is passed (e.g., from a manual search)
+      // Handle manual search if category is provided
       if (category != null && category.isNotEmpty) {
         final products = await _fetchProductsForQuery(category);
         print(
@@ -68,7 +65,7 @@ class LotusScraper extends BaseScraper {
         return products;
       }
 
-      // Default background run — iterate over all search terms
+      // Loop through keywords to build search results
       final List<(Product, Price)> all = [];
       for (final term in searchTerms) {
         final products = await _fetchProductsForQuery(term);
@@ -85,9 +82,7 @@ class LotusScraper extends BaseScraper {
 
   @override
   Future<(Product, Price)?> scrapeProductByUrl(String url) async {
-    // Lotus product detail pages are also React-rendered. We cannot scrape
-    // them via HTTP, but the list API gives us enough data so this path is
-    // not normally needed.
+    // URL scraping not supported for React SPA
     print('⚠️ Lotus: scrapeProductByUrl is not supported for SPA pages.');
     return null;
   }
@@ -99,13 +94,11 @@ class LotusScraper extends BaseScraper {
         'Food',
       ];
 
-  // ── Private helpers ──────────────────────────────────────────────────────────
-
-  /// Fetch all products for a single search term, paging through results.
+  /// Loop through all pages of results
   Future<List<(Product, Price)>> _fetchProductsForQuery(String query) async {
     final List<(Product, Price)> results = [];
     int offset = 0;
-    int total = _pageSize; // will be updated after first response
+    int total = _pageSize;
 
     while (offset < total) {
       final page = await _fetchPage(query: query, offset: offset);
@@ -115,6 +108,7 @@ class LotusScraper extends BaseScraper {
       final products =
           (page['data']?['products'] as List<dynamic>?) ?? [];
 
+      // Parse page items into product-price list
       for (final raw in products) {
         final pair = _parsePair(raw as Map<String, dynamic>);
         if (pair != null) results.add(pair);
@@ -126,11 +120,12 @@ class LotusScraper extends BaseScraper {
     return results;
   }
 
-  /// Call one page of the Lotus product search API.
+  /// Call one page of the Lotus product search API
   Future<Map<String, dynamic>?> _fetchPage({
     required String query,
     required int offset,
   }) async {
+    // Encode query parameters to JSON
     final q = jsonEncode({
       'offset': offset,
       'limit': _pageSize,
@@ -144,6 +139,7 @@ class LotusScraper extends BaseScraper {
         '$_apiBase/lotuss-mobile-bff/product/v2/products?q=${Uri.encodeComponent(q)}');
 
     try {
+      // Make HTTPS GET call with API headers
       final response = await http
           .get(uri, headers: _apiHeaders)
           .timeout(const Duration(seconds: 30));
@@ -160,13 +156,13 @@ class LotusScraper extends BaseScraper {
     }
   }
 
-  /// Parse one product JSON object from the API into a (Product, Price) pair.
+  /// Convert raw product JSON to Product/Price models
   (Product, Price)? _parsePair(Map<String, dynamic> raw) {
     try {
       final name = (raw['name'] as String? ?? '').trim();
       if (name.isEmpty) return null;
 
-      // Price: use finalPrice (after promotions) first, fall back to regularPrice
+      // Extract final price, fallback to regular price
       final minimumPrice =
           (raw['priceRange']?['minimumPrice'] as Map<String, dynamic>?) ?? {};
       final finalPrice =
@@ -176,13 +172,13 @@ class LotusScraper extends BaseScraper {
               finalPrice;
       final price = finalPrice > 0 ? finalPrice : regularPrice;
 
-      // Image
+      // Extract product image URL
       final imageUrl = (raw['thumbnail']?['url'] as String?) ??
           (raw['smallImage']?['url'] as String?) ??
           (raw['image']?['url'] as String?) ??
           '';
 
-      // Product URL
+      // Build store web link
       final urlKey = (raw['urlKey'] as String?) ?? (raw['sku'] as String?) ?? '';
       final productUrl = urlKey.isNotEmpty
           ? '$_storeFront/product/$urlKey'
