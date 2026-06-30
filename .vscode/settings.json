@@ -3,8 +3,10 @@
     "dart": {
       "command": "C:\\dart\\dart-sdk\\bin\\dart.exe",
       "args": [
-        "mcp-server"
-      ]
+        "run",
+        "bin/server.dart"
+      ],
+      "cwd": "C:\\Users\\HP VICTUS\\AndroidStudioProjects\\smartshopper_mobile\\mcp_server"
     }
   },
   "java.configuration.updateBuildConfiguration": "automatic"
