@@ -63,6 +63,22 @@ class WebScraperService {
     return results;
   }
 
+  /// Scrape all registered retailers and return raw products/prices (for in-memory cache)
+  Future<List<(Product, Price)>> scrapeAllProducts({
+    String? category,
+  }) async {
+    final List<(Product, Price)> all = [];
+    for (final entry in _scrapers.entries) {
+      try {
+        final products = await entry.value.scrapeProducts(category: category);
+        all.addAll(products);
+      } catch (e) {
+        print('❌ Error scraping ${entry.key}: $e');
+      }
+    }
+    return all;
+  }
+
   /// Trigger scrape for a single retailer
   Future<int> scrapeRetailer(
     String retailerName, {

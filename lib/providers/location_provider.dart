@@ -5,12 +5,17 @@ import 'package:smartshopper_mobile/services/location_service.dart';
 /// Provider that holds the user's current GPS position.
 /// Automatically updates when the app starts.
 final userLocationProvider = StateProvider<Position?>((ref) {
-  // We can also set up a stream here for live updates, 
-  // but for a budget calculation, a single fetch is usually enough.
-  LocationService.getCurrentPosition().then((pos) {
-    if (pos != null) {
-      ref.controller.state = pos;
+  // Check permission status without triggering a prompt on app startup
+  Geolocator.checkPermission().then((permission) {
+    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+      // Fetch current location if permission is already granted
+      LocationService.getCurrentPosition().then((pos) {
+        if (pos != null) {
+          ref.controller.state = pos;
+        }
+      });
     } else {
+      // Set to fallback location immediately without requesting permissions
       ref.controller.state = Position(
         latitude: LocationService.fallbackLat,
         longitude: LocationService.fallbackLng,

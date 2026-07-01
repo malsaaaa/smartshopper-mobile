@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
@@ -5,6 +6,7 @@ import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/add_to_list_sheet.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
+import 'package:smartshopper_mobile/services/web_scraper_service.dart';
 
 // ─── Brand category metadata ───────────────────────────────────────────────────
 
@@ -62,6 +64,8 @@ class _SearchTabState extends ConsumerState<SearchTab> {
   String _query = '';
   String? _selectedCategory;
   String? _selectedBrand;
+  bool _isScraping = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -71,14 +75,77 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   void _onSearch(String q) {
+    _debounceTimer?.cancel();
+    
+    if (q.trim().isEmpty) {
+      setState(() {
+        _query = '';
+      });
+      return;
+    }
+    
     setState(() {
       _query = q.trim();
     });
+    
+    // Trigger live scraping immediately (since it's a chip click, no need to debounce)
+    _triggerLiveScrape(q);
+  }
+
+  Future<void> _triggerLiveScrape(String query) async {
+    if (query.trim().isEmpty) return;
+    
+    setState(() {
+      _isScraping = true;
+    });
+
+    try {
+      final scraperService = WebScraperService();
+      
+      // 1. Run live scraping locally
+      final results = await scraperService.scrapeAllProducts(category: query.trim());
+      
+      // 2. Separate products and prices
+      final localProducts = <Product>[];
+      final localPrices = <Price>[];
+      
+      for (final (product, price) in results) {
+        localProducts.add(product);
+        localPrices.add(price);
+      }
+      
+      // Update local state providers to reactively refresh the comparison list
+      ref.read(localProductsProvider.notifier).state = [
+        ...ref.read(localProductsProvider),
+        ...localProducts,
+      ];
+      ref.read(localPricesProvider.notifier).state = [
+        ...ref.read(localPricesProvider),
+        ...localPrices,
+      ];
+      
+      // 3. Attempt to save in Firestore in background (will succeed if admin, fail silently if regular user)
+      // ignore: unawaited_futures
+      scraperService.scrapeAllRetailers(
+        category: query.trim(),
+        storeInFirestore: true,
+      ).catchError((e) => debugPrint('Firestore write bypassed: $e'));
+      
+    } catch (e) {
+      debugPrint('Error during live search scraping: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScraping = false;
+        });
+      }
+    }
   }
 
   @override
@@ -118,8 +185,29 @@ class _SearchTabState extends ConsumerState<SearchTab> {
               padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
               child: SearchField(
                 controller: _searchController,
-                onChanged: _onSearch,
-                onSubmitted: (q) => ref.read(recentSearchesProvider.notifier).addSearch(q),
+                onChanged: (val) {
+                  _debounceTimer?.cancel();
+                  
+                  if (val.trim().isEmpty) {
+                    setState(() {
+                      _query = '';
+                    });
+                    return;
+                  }
+                  
+                  setState(() {
+                    _query = val.trim();
+                  });
+                  
+                  // Auto trigger live crawling 1.5 seconds after user stops typing
+                  _debounceTimer = Timer(const Duration(milliseconds: 1500), () {
+                    _triggerLiveScrape(val);
+                  });
+                },
+                onSubmitted: (q) {
+                  ref.read(recentSearchesProvider.notifier).addSearch(q);
+                  _triggerLiveScrape(q);
+                },
                 hint: 'Search Milo, Drinks, Noodles…',
               ),
             ),
@@ -128,11 +216,25 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
             // ── Body ────────────────────────────────────────────────────────
             Expanded(
-              child: showingSearch
-                  ? _SearchResults(results: searchResults, query: _query)
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                      children: [
+              child: _isScraping
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: AppSpacing.md),
+                          Text(
+                            'Searching stores for live prices...',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
+                    )
+                  : showingSearch
+                      ? _SearchResults(results: searchResults, query: _query)
+                      : ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                          children: [
                         // ── Recent Searches (if any) ────────────────────────
                         if (_selectedCategory == null && _selectedBrand == null && recentSearches.isNotEmpty) ...[
                           Text('Recent Searches', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),

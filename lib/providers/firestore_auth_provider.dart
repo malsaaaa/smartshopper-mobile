@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/services/firestore_auth_service.dart';
 import 'package:smartshopper_mobile/services/firestore_user_service.dart';
+import 'package:smartshopper_mobile/services/fcm_service.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 
 /// Firebase Auth Service Provider
@@ -56,6 +57,8 @@ class SignUpNotifier extends StateNotifier<AsyncValue<void>> {
         password: password,
         name: name,
       );
+      // Ask for notification permissions upon successful registration
+      await FCMService().requestNotificationPermission();
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -86,6 +89,8 @@ class SignInNotifier extends StateNotifier<AsyncValue<void>> {
         email: email,
         password: password,
       );
+      // Ask for notification permissions upon successful login
+      await FCMService().requestNotificationPermission();
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -110,6 +115,8 @@ class GoogleSignInNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       final authService = _ref.read(firestoreAuthServiceProvider);
       await authService.signInWithGoogle();
+      // Ask for notification permissions upon successful Google login
+      await FCMService().requestNotificationPermission();
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

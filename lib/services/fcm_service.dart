@@ -49,10 +49,7 @@ class FCMService {
     // Initialize local notifications
     await _initializeLocalNotifications();
 
-    // Request permissions
-    await _requestPermissions();
-
-    // Get initial token
+    // Get initial token (permissions requested separately on login)
     final token = await _firebaseMessaging.getToken();
     print('🔐 FCM Token: $token');
 
@@ -181,6 +178,12 @@ class FCMService {
   }
 
   // ============== PERMISSIONS ==============
+
+  /// Request notification permissions from the user (called on login)
+  Future<void> requestNotificationPermission() async {
+    if (kIsWeb) return;
+    await _requestPermissions();
+  }
 
   Future<void> _requestPermissions() async {
     final settings = await _firebaseMessaging.requestPermission(

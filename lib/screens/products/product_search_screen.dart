@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
@@ -5,6 +6,7 @@ import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/add_to_list_sheet.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
+import 'package:smartshopper_mobile/services/web_scraper_service.dart';
 
 /// Detailed product search screen with filtering and price comparison
 class ProductSearchScreen extends ConsumerStatefulWidget {
@@ -19,6 +21,8 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   List<Product> _searchResults = [];
   String _selectedCategory = 'All';
   bool _hasSearched = false;
+  bool _isScraping = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -26,26 +30,84 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
     _searchController = TextEditingController();
   }
 
+  /// Trigger live web scraping on all retailers for a search term
+  Future<void> _triggerLiveScrape(String query) async {
+    if (query.trim().isEmpty) return;
+    
+    setState(() {
+      _hasSearched = true;
+      _isScraping = true;
+    });
+
+    try {
+      final scraperService = WebScraperService();
+      
+      // 1. Run live scraping locally
+      final results = await scraperService.scrapeAllProducts(category: query.trim());
+      
+      // 2. Separate products and prices
+      final localProducts = <Product>[];
+      final localPrices = <Price>[];
+      
+      for (final (product, price) in results) {
+        localProducts.add(product);
+        localPrices.add(price);
+      }
+      
+      // Update local state providers to reactively refresh the comparison list
+      ref.read(localProductsProvider.notifier).state = [
+        ...ref.read(localProductsProvider),
+        ...localProducts,
+      ];
+      ref.read(localPricesProvider.notifier).state = [
+        ...ref.read(localPricesProvider),
+        ...localPrices,
+      ];
+      
+      // 3. Attempt to save in Firestore in background (will succeed if admin, fail silently if regular user)
+      // ignore: unawaited_futures
+      scraperService.scrapeAllRetailers(
+        category: query.trim(),
+        storeInFirestore: true,
+      ).catchError((e) => debugPrint('Firestore write bypassed: $e'));
+      
+      if (mounted) {
+        _performSearch(query);
+      }
+    } catch (e) {
+      debugPrint('Error during live search scraping: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScraping = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   /// Perform search with optional category filter
   void _performSearch(String query) {
-    setState(() => _hasSearched = true);
-
     if (query.isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
 
+    final queryWords = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     final allProducts = ref.read(groupedProductsProvider).valueOrNull ?? [];
+    
     List<Product> results = allProducts
-        .where((p) =>
-            p.name.toLowerCase().contains(query.toLowerCase()) ||
-            p.description.toLowerCase().contains(query.toLowerCase()))
+        .where((p) {
+          final name = p.name.toLowerCase();
+          final desc = p.description.toLowerCase();
+          return queryWords.every((word) => name.contains(word) || desc.contains(word));
+        })
         .toList();
 
     // Apply category filter if not "All"
@@ -75,6 +137,13 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
   Widget build(BuildContext context) {
     final categories = ref.watch(categoriesProvider);
 
+    // Automatically update search results when Firestore stream updates products
+    ref.listen<AsyncValue<List<Product>>>(groupedProductsProvider, (previous, next) {
+      if (next.hasValue && _searchController.text.isNotEmpty && _hasSearched) {
+        _performSearch(_searchController.text);
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search Products'),
@@ -88,8 +157,25 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: SearchField(
               controller: _searchController,
-              onChanged: _performSearch,
-              hint: 'Search Milo, Rice, Electronics...',
+              onChanged: (val) {
+                _debounceTimer?.cancel();
+                
+                // If search query is cleared, revert to recommendations
+                if (val.trim().isEmpty) {
+                  setState(() {
+                    _hasSearched = false;
+                    _searchResults = [];
+                  });
+                  return;
+                }
+                
+                // Auto trigger live crawling 1.5 seconds after user stops typing
+                _debounceTimer = Timer(const Duration(milliseconds: 1500), () {
+                  _triggerLiveScrape(val);
+                });
+              },
+              onSubmitted: _triggerLiveScrape,
+              hint: 'Search Milo, Rice, Cooking oil...',
             ),
           ),
 
@@ -134,6 +220,22 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
 
   /// Build search results view
   Widget _buildSearchResults() {
+    if (_isScraping) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: AppSpacing.md),
+            Text(
+              'Searching stores for live prices...',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (!_hasSearched) {
       // Show recommended / popular products when user hasn't searched yet
       final allProducts = ref.watch(groupedProductsProvider).valueOrNull ?? [];
@@ -153,10 +255,9 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
 
     if (_searchResults.isEmpty) {
       return EmptyState(
-        icon: Icons.inbox,
-        title: 'No Results',
-        message:
-            'No products found matching "${_searchController.text}"${_selectedCategory != 'All' ? ' in $_selectedCategory' : ''}',
+        icon: Icons.search_off,
+        title: 'No Products Found',
+        message: 'No products matched "${_searchController.text}" at MyDin, Lotus\'s, or AEON.',
       );
     }
 

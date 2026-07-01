@@ -3,6 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/services/firestore_product_service.dart';
 
+// ============== LOCAL SCAN / SCRAPE STORAGE (IN-MEMORY CACHE) ==============
+
+/// In-memory scraped products for session query fallback (bypass Firestore rules)
+final localProductsProvider = StateProvider<List<Product>>((ref) => []);
+
+/// In-memory scraped prices
+final localPricesProvider = StateProvider<List<Price>>((ref) => []);
+
 // ============== SERVICE PROVIDER ==============
 
 /// Single instance of FirestoreProductService
@@ -76,9 +84,12 @@ String _getProductMatchKey(String name) {
 /// Deduplicated list of products by name (computed)
 final groupedProductsProvider = Provider<AsyncValue<List<Product>>>((ref) {
   final productsAsync = ref.watch(productsStreamProvider);
+  final localProducts = ref.watch(localProductsProvider);
+  
   return productsAsync.whenData((products) {
+    final allProducts = [...products, ...localProducts];
     final Map<String, Product> uniqueProducts = {};
-    for (final product in products) {
+    for (final product in allProducts) {
       final matchKey = _getProductMatchKey(product.name);
       if (!uniqueProducts.containsKey(matchKey)) {
         uniqueProducts[matchKey] = product;
@@ -94,11 +105,12 @@ final productSearchProvider = Provider.family<List<Product>, String>((ref, query
   return groupedProductsAsync.when(
     data: (products) {
       if (query.isEmpty) return products;
-      final lowercaseQuery = query.toLowerCase();
-      return products.where((p) => 
-        p.name.toLowerCase().contains(lowercaseQuery) || 
-        p.description.toLowerCase().contains(lowercaseQuery)
-      ).toList();
+      final queryWords = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      return products.where((p) {
+        final name = p.name.toLowerCase();
+        final desc = p.description.toLowerCase();
+        return queryWords.every((word) => name.contains(word) || desc.contains(word));
+      }).toList();
     },
     loading: () => [],
     error: (_, __) => [],
@@ -122,24 +134,28 @@ final productByIdProvider = Provider.family<Product?, int>((ref, productId) {
 final pricesForProductProvider = Provider.family<List<Price>, int>((ref, productId) {
   final enhancedPricesAsync = ref.watch(enhancedPricesProvider);
   final productsAsync = ref.watch(productsStreamProvider);
+  final localPrices = ref.watch(localPricesProvider);
+  final localProducts = ref.watch(localProductsProvider);
   
   return productsAsync.when(
     data: (products) {
-      final targetProduct = products.cast<Product?>().firstWhere(
+      final allProducts = [...products, ...localProducts];
+      final targetProduct = allProducts.cast<Product?>().firstWhere(
         (p) => p?.id == productId,
         orElse: () => null,
       );
       if (targetProduct == null) return [];
       
       final targetKey = _getProductMatchKey(targetProduct.name);
-      final sameNameProductIds = products
+      final sameNameProductIds = allProducts
           .where((p) => _getProductMatchKey(p.name) == targetKey)
           .map((p) => p.id)
           .toSet();
           
       return enhancedPricesAsync.when(
         data: (livePrices) {
-          final filteredLive = livePrices
+          final allPrices = [...livePrices, ...localPrices];
+          final filteredLive = allPrices
               .where((price) => sameNameProductIds.contains(price.productId))
               .toList();
           return filteredLive..sort((a, b) => a.price.compareTo(b.price));

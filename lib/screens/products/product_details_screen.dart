@@ -8,6 +8,7 @@ import 'package:smartshopper_mobile/providers/index.dart';
 import 'package:smartshopper_mobile/widgets/add_to_list_sheet.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 import 'package:smartshopper_mobile/services/location_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Product details screen showing full product info and all retailer prices
 class ProductDetailsScreen extends ConsumerStatefulWidget {
@@ -52,6 +53,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       setState(() {
         _userPosition = pos;
       });
+      // Update global location provider with resolved position
+      ref.read(userLocationProvider.notifier).state = pos;
     }
   }
 
@@ -555,8 +558,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 Expanded(
                   child: PrimaryButton(
                     label: 'View Store',
-                    onPressed: () {
-                      // TODO: Open retailer URL
+                    onPressed: () async {
+                      final urlString = bestPrice.productUrl;
+                      if (urlString.isNotEmpty) {
+                        final uri = Uri.tryParse(urlString);
+                        if (uri != null) {
+                          try {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Could not open store link: $urlString')),
+                              );
+                            }
+                          }
+                        }
+                      }
                     },
                     icon: Icons.open_in_new,
                   ),
