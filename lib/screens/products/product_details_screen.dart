@@ -428,59 +428,98 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         ? 0.0 
         : prices.map((p) => p.price).reduce((a, b) => a > b ? a : b);
 
+    // Watch all retailers to find missing ones (out of stock)
+    final retailersAsync = ref.watch(retailersStreamProvider);
+    final allRetailers = retailersAsync.value ?? [];
+    
+    final pricesRetailerIds = prices.map((p) => p.retailerId).toSet();
+    final missingRetailers = allRetailers.where((r) => !pricesRetailerIds.contains(r.id)).toList();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
-        children: prices.asMap().entries.map((entry) {
-          final index = entry.key;
-          final price = entry.value;
-          final isBestPrice = index == 0 && _sortBy == 'price';
-          final savings = maxPrice - price.price;
+        children: [
+          // 1. In-stock Retailers
+          ...prices.asMap().entries.map((entry) {
+            final index = entry.key;
+            final price = entry.value;
+            final isBestPrice = index == 0 && _sortBy == 'price';
+            final savings = maxPrice - price.price;
 
-          // Handle auto-discovered coordinates
-          var r = price.retailer;
-          if (r != null && (r.latitude == null || r.latitude == 0.0) && _autoCoords.containsKey(r.id)) {
-            final coords = _autoCoords[r.id]!;
-            r = Retailer(
-              id: r.id,
-              name: r.name,
-              logoUrl: r.logoUrl,
-              website: r.website,
-              latitude: coords['latitude'],
-              longitude: coords['longitude'],
-              createdAt: r.createdAt,
-              updatedAt: r.updatedAt,
-            );
-          }
+            // Handle auto-discovered coordinates
+            var r = price.retailer;
+            if (r != null && (r.latitude == null || r.latitude == 0.0) && _autoCoords.containsKey(r.id)) {
+              final coords = _autoCoords[r.id]!;
+              r = Retailer(
+                id: r.id,
+                name: r.name,
+                logoUrl: r.logoUrl,
+                website: r.website,
+                latitude: coords['latitude'],
+                longitude: coords['longitude'],
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+              );
+            }
 
-          final distance = r != null 
-              ? LocationService.calculateDistanceTo(r, currentPos: _userPosition) 
-              : null;
+            final distance = r != null 
+                ? LocationService.calculateDistanceTo(r, currentPos: _userPosition) 
+                : null;
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: RetailerBadge(
-              retailerName: r?.name ?? 'Unknown',
-              logoUrl: r?.logoUrl,
-              price: price.price,
-              isBestPrice: isBestPrice,
-              savings: savings > 0.01 ? savings : null,
-              scrapedAt: price.scrapedAt,
-              distanceKm: distance,
-              gasCost: distance != null 
-                  ? LocationService.calculateGasCost(distance) 
-                  : null,
-              latitude: r?.latitude,
-              longitude: r?.longitude,
-              // Tap a specific retailer → open sheet pre-set to that retailer's price
-              onTap: () => AddToListSheet.show(
-                context,
-                product: product,
-                selectedPrice: price,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: RetailerBadge(
+                retailerName: r?.name ?? 'Unknown',
+                logoUrl: r?.logoUrl,
+                price: price.price,
+                isBestPrice: isBestPrice,
+                savings: savings > 0.01 ? savings : null,
+                scrapedAt: price.scrapedAt,
+                distanceKm: distance,
+                gasCost: distance != null 
+                    ? LocationService.calculateGasCost(distance) 
+                    : null,
+                latitude: r?.latitude,
+                longitude: r?.longitude,
+                // Tap a specific retailer → open sheet pre-set to that retailer's price
+                onTap: () => AddToListSheet.show(
+                  context,
+                  product: product,
+                  selectedPrice: price,
+                ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }),
+
+          // 2. Out-of-stock Retailers
+          ...missingRetailers.map((r) {
+            // Apply auto coords if available
+            var resolvedRetailer = r;
+            if ((r.latitude == null || r.latitude == 0.0) && _autoCoords.containsKey(r.id)) {
+              final coords = _autoCoords[r.id]!;
+              resolvedRetailer = Retailer(
+                id: r.id,
+                name: r.name,
+                logoUrl: r.logoUrl,
+                website: r.website,
+                latitude: coords['latitude'],
+                longitude: coords['longitude'],
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: RetailerBadge(
+                retailerName: resolvedRetailer.name,
+                logoUrl: resolvedRetailer.logoUrl,
+                price: 0.0,
+                isOutOfStock: true,
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -515,12 +554,98 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       return;
     }
 
-    // Open the shared bottom sheet — best price pre-selected
-    final bestPrice = prices.isNotEmpty ? prices.first : null;
+    final bestPrice = prices.first;
     AddToListSheet.show(
       context,
       product: product,
       selectedPrice: bestPrice,
+    );
+  }
+
+  /// Launch store URL externally
+  Future<void> _launchStoreUrl(BuildContext context, String urlString) async {
+    final uri = Uri.tryParse(urlString);
+    if (uri != null) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open store link: $urlString')),
+          );
+        }
+      }
+    }
+  }
+
+  /// Show store link selector bottom sheet
+  void _showStoreLinkSelector(BuildContext context, List<Price> prices) {
+    // Filter prices that have valid URLs
+    final validPrices = prices.where((p) => p.productUrl.isNotEmpty).toList();
+
+    if (validPrices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No store links available for this product.')),
+      );
+      return;
+    }
+
+    if (validPrices.length == 1) {
+      _launchStoreUrl(context, validPrices.first.productUrl);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'Select Retailer Store',
+                  style: AppTypography.headline3,
+                ),
+              ),
+              const Divider(height: 1),
+              ...validPrices.map((price) {
+                final storeName = price.retailer?.name ?? 'Unknown Store';
+                final formattedPrice = 'RM ${price.price.toStringAsFixed(2)}';
+                
+                return ListTile(
+                  leading: Builder(builder: (context) {
+                    final resolvedLogo = getRetailerLogo(storeName, price.retailer?.logoUrl);
+                    if (resolvedLogo.startsWith('assets/')) {
+                      return Image.asset(resolvedLogo, width: 32, height: 32);
+                    } else if (resolvedLogo.startsWith('http://') || resolvedLogo.startsWith('https://')) {
+                      return Image.network(
+                        resolvedLogo,
+                        width: 32,
+                        height: 32,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.store),
+                      );
+                    }
+                    return const Icon(Icons.store);
+                  }),
+                  title: Text(storeName, style: AppTypography.bodyLarge),
+                  subtitle: Text(formattedPrice, style: AppTypography.bodySmall.copyWith(color: AppTheme.primary)),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchStoreUrl(context, price.productUrl);
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -558,23 +683,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 Expanded(
                   child: PrimaryButton(
                     label: 'View Store',
-                    onPressed: () async {
-                      final urlString = bestPrice.productUrl;
-                      if (urlString.isNotEmpty) {
-                        final uri = Uri.tryParse(urlString);
-                        if (uri != null) {
-                          try {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Could not open store link: $urlString')),
-                              );
-                            }
-                          }
-                        }
-                      }
-                    },
+                    onPressed: () => _showStoreLinkSelector(context, prices),
                     icon: Icons.open_in_new,
                   ),
                 ),

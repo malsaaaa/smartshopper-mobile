@@ -105,9 +105,10 @@ class _HomeTabState extends ConsumerState<HomeTab> {
           children: [
             // Beautiful Welcome Header with Background
             Stack(
+              clipBehavior: Clip.none,
               children: [
                 Container(
-                  height: 200,
+                  height: 220,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -119,43 +120,85 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                       ],
                     ),
                   ),
-                  child: Image.asset(
-                    'assets/images/backgrounds/main-bg.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-                  ),
+                  child: const _HeaderImage(),
                 ),
                 Container(
-                  height: 200,
+                  height: 220,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withValues(alpha: 0.1),
-                        Colors.black.withValues(alpha: 0.4),
+                        Colors.black.withValues(alpha: 0.0),
+                        Colors.black.withValues(alpha: 0.5),
                       ],
                     ),
                   ),
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isLoggedIn ? 'Welcome back, ${userAsync.value?.name ?? 'User'}!' : 'Welcome!',
-                        style: AppTypography.headline1.copyWith(color: Colors.white, fontSize: 28),
-                      ),
-                      Text(
-                        'Find the best deals for your groceries today.',
-                        style: AppTypography.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-                      ),
-                    ],
+                ),
+                Positioned(
+                  left: AppSpacing.lg,
+                  right: AppSpacing.lg,
+                  bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isLoggedIn ? 'Hello, ${userAsync.value?.name ?? 'User'}!' : 'Welcome!',
+                                style: AppTypography.headline3.copyWith(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Let\'s compare store prices & save today.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppTheme.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryLight,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.shopping_basket_outlined,
+                            color: AppTheme.primaryDark,
+                            size: 24,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
+
+            const SizedBox(height: AppSpacing.md),
 
             Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -168,7 +211,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                   SectionHeader(title: 'My Favorites', subtitle: 'Quick access'),
                   const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
-                  SectionHeader(title: 'Latest Price Updates', subtitle: 'Top 5 recent changes'),
+                  SectionHeader(title: 'Live Price Tracker', subtitle: 'Recently scanned supermarket prices'),
                 ],
               ),
             ),
@@ -185,9 +228,10 @@ class _HomeTabState extends ConsumerState<HomeTab> {
             children: [
               // Beautiful Welcome Header with Background
               Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Container(
-                    height: 200,
+                    height: 220,
                     width: double.infinity,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -199,39 +243,85 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         ],
                       ),
                     ),
-                    child: _HeaderImage(),
+                    child: const _HeaderImage(),
                   ),
                   Container(
-                    height: 200,
+                    height: 220,
                     width: double.infinity,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.1),
-                          Colors.black.withValues(alpha: 0.4),
+                          Colors.black.withValues(alpha: 0.0),
+                          Colors.black.withValues(alpha: 0.5),
                         ],
                       ),
                     ),
-                    padding: const EdgeInsets.all(AppSpacing.xl),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isLoggedIn ? 'Welcome back, ${userAsync.value?.name ?? 'User'}!' : 'Welcome!',
-                          style: AppTypography.headline1.copyWith(color: Colors.white, fontSize: 28),
-                        ),
-                        Text(
-                          'Find the best deals for your groceries today.',
-                          style: AppTypography.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-                        ),
-                      ],
+                  ),
+                  Positioned(
+                    left: AppSpacing.lg,
+                    right: AppSpacing.lg,
+                    bottom: 12,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  isLoggedIn ? 'Hello, ${userAsync.value?.name ?? 'User'}!' : 'Welcome!',
+                                  style: AppTypography.headline3.copyWith(
+                                    color: AppTheme.textPrimary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Let\'s compare store prices & save today.',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppTheme.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.shopping_basket_outlined,
+                              color: AppTheme.primaryDark,
+                              size: 24,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
+
+              const SizedBox(height: AppSpacing.md),
 
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
@@ -360,8 +450,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                       );
                     }),
                     SectionHeader(
-                      title: 'Latest Price Updates',
-                      subtitle: 'Top 5 recent changes',
+                      title: 'Live Price Tracker',
+                      subtitle: 'Recently scanned supermarket prices',
                       onViewAll: () {
                         Navigator.pushNamed(context, '/all-prices');
                       },
@@ -448,46 +538,97 @@ class _BudgetCard extends ConsumerWidget {
     final statusColor = isOverBudget ? AppTheme.error : AppTheme.secondary;
 
     return BaseCard(
-      backgroundColor: isOverBudget
-          ? AppTheme.error.withValues(alpha: 0.1)
-          : AppTheme.secondary.withValues(alpha: 0.05),
-      borderColor: statusColor.withValues(alpha: 0.3),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Monthly Budget', style: AppTypography.labelLarge),
-              StatusBadge(
-                label: isOverBudget ? 'Over Budget' : 'On Track',
-                status: isOverBudget ? StatusType.error : StatusType.success,
+      backgroundColor: Colors.white,
+      borderColor: AppTheme.divider,
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.circular(2),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            'RM${spent.toStringAsFixed(2)} / RM${limit.toStringAsFixed(2)}',
-            style: AppTypography.headline2.copyWith(color: statusColor),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            child: LinearProgressIndicator(
-              value: percentage,
-              minHeight: 8,
-              backgroundColor: AppTheme.divider,
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            displayBudget.daysRemaining > 0
-                ? '${displayBudget.daysRemaining} days remaining'
-                : 'Budget period ended',
-            style: AppTypography.bodySmall,
-          ),
-        ],
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 18,
+                            color: statusColor,
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Text('Monthly Budget', style: AppTypography.labelLarge),
+                        ],
+                      ),
+                      StatusBadge(
+                        label: isOverBudget ? 'Over Budget' : 'On Track',
+                        status: isOverBudget ? StatusType.error : StatusType.success,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        'RM${spent.toStringAsFixed(2)}',
+                        style: AppTypography.headline2.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'of RM${limit.toStringAsFixed(2)} limit',
+                        style: AppTypography.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    child: LinearProgressIndicator(
+                      value: percentage,
+                      minHeight: 8,
+                      backgroundColor: AppTheme.divider,
+                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        displayBudget.daysRemaining > 0
+                            ? '${displayBudget.daysRemaining} days remaining'
+                            : 'Budget period ended',
+                        style: AppTypography.bodySmall.copyWith(fontSize: 11),
+                      ),
+                      Text(
+                        '${(percentage * 100).toStringAsFixed(0)}% spent',
+                        style: AppTypography.bodySmall.copyWith(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

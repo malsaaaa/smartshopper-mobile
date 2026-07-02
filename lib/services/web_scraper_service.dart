@@ -63,18 +63,24 @@ class WebScraperService {
     return results;
   }
 
-  /// Scrape all registered retailers and return raw products/prices (for in-memory cache)
+  /// Scrape all registered retailers concurrently in parallel (for in-memory cache)
   Future<List<(Product, Price)>> scrapeAllProducts({
     String? category,
   }) async {
-    final List<(Product, Price)> all = [];
-    for (final entry in _scrapers.entries) {
+    final tasks = _scrapers.entries.map((entry) async {
       try {
         final products = await entry.value.scrapeProducts(category: category);
-        all.addAll(products);
+        return products;
       } catch (e) {
         print('❌ Error scraping ${entry.key}: $e');
+        return <(Product, Price)>[];
       }
+    });
+
+    final results = await Future.wait(tasks);
+    final List<(Product, Price)> all = [];
+    for (final list in results) {
+      all.addAll(list);
     }
     return all;
   }

@@ -454,6 +454,7 @@ class RetailerBadge extends StatelessWidget {
   final double? gasCost;
   final double? latitude;
   final double? longitude;
+  final bool isOutOfStock;
 
   const RetailerBadge({
     super.key,
@@ -468,6 +469,7 @@ class RetailerBadge extends StatelessWidget {
     this.gasCost,
     this.latitude,
     this.longitude,
+    this.isOutOfStock = false,
   });
 
   String _formatScraped(DateTime dt) {
@@ -510,11 +512,12 @@ class RetailerBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showBest = isBestPrice && !isOutOfStock;
     return BaseCard(
       onTap: onTap,
       backgroundColor:
-          isBestPrice ? AppTheme.bestPriceLight : AppTheme.surface,
-      borderColor: isBestPrice ? AppTheme.bestPrice : AppTheme.divider,
+          showBest ? AppTheme.bestPriceLight : AppTheme.surface,
+      borderColor: showBest ? AppTheme.bestPrice : AppTheme.divider,
       padding: const EdgeInsets.all(AppTheme.spacing12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,7 +553,7 @@ class RetailerBadge extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (isBestPrice)
+              if (showBest)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppTheme.spacing8,
@@ -572,14 +575,23 @@ class RetailerBadge extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppTheme.spacing8),
-          Text(
-            'RM${price.toStringAsFixed(2)}',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: isBestPrice ? AppTheme.bestPrice : AppTheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          if (savings != null && savings! > 0)
+          if (isOutOfStock)
+            Text(
+              'No Stock',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppTheme.textTertiary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            )
+          else
+            Text(
+              'RM${price.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: isBestPrice ? AppTheme.bestPrice : AppTheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          if (savings != null && savings! > 0 && !isOutOfStock)
             Padding(
               padding: const EdgeInsets.only(top: AppTheme.spacing8),
               child: Text(
@@ -648,7 +660,7 @@ class RetailerBadge extends StatelessWidget {
                 ],
               ),
             ),
-          if (savings != null && gasCost != null)
+          if (savings != null && gasCost != null && !isOutOfStock)
             Builder(builder: (context) {
               final net = savings! - gasCost!;
               final isProfit = net > 0;
@@ -675,7 +687,7 @@ class RetailerBadge extends StatelessWidget {
                 ),
               );
             }),
-          if (latitude != null && longitude != null)
+          if (latitude != null && longitude != null && !isOutOfStock)
             Padding(
               padding: const EdgeInsets.only(top: AppTheme.spacing8),
               child: SizedBox(

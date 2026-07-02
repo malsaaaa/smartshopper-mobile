@@ -116,12 +116,8 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
               for (final a in analyses) {
                 final price = a.priceByRetailer[retailer.name];
                 if (price != null) {
-                  // Add actual store price * quantity
                   total += price * a.cartItem.quantity;
                   count++;
-                } else {
-                  // Fallback: use cheapest alternative price if not sold here
-                  total += a.cheapestPrice * a.cartItem.quantity;
                 }
               }
 
@@ -846,6 +842,7 @@ class _TableRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = analysis.cartItem;
+    final isAvailable = analysis.priceByRetailer[retailerName] != null;
     final priceHere = analysis.priceByRetailer[retailerName] ??
         analysis.cheapestPrice;
     final subtotal = priceHere * item.quantity;
@@ -854,7 +851,7 @@ class _TableRow extends StatelessWidget {
     // Find cheapest OTHER retailer
     String? cheaperRetailer;
     double cheaperSaving = 0;
-    if (!isBestHere) {
+    if (!isBestHere && isAvailable) {
       cheaperRetailer = analysis.cheapestRetailer;
       cheaperSaving = priceHere - analysis.cheapestPrice;
     }
@@ -893,44 +890,53 @@ class _TableRow extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Text(
-              'RM${priceHere.toStringAsFixed(2)}',
-              style: AppTypography.bodySmall
-                  .copyWith(color: AppTheme.secondary),
+              isAvailable ? 'RM${priceHere.toStringAsFixed(2)}' : 'N/A',
+              style: AppTypography.bodySmall.copyWith(
+                color: isAvailable ? AppTheme.secondary : AppTheme.textTertiary,
+              ),
             ),
           ),
           // Subtotal
           Expanded(
             flex: 2,
             child: Text(
-              'RM${subtotal.toStringAsFixed(2)}',
-              style: AppTypography.bodySmall,
+              isAvailable ? 'RM${subtotal.toStringAsFixed(2)}' : 'N/A',
+              style: AppTypography.bodySmall.copyWith(
+                color: isAvailable ? AppTheme.textPrimary : AppTheme.textTertiary,
+              ),
             ),
           ),
           // Cheaper alternative
           Expanded(
             flex: 4,
-            child: isBestHere
+            child: !isAvailable
                 ? Text(
-                    'Best price ✓',
+                    'N/A',
                     style: AppTypography.bodySmall
                         .copyWith(color: AppTheme.textTertiary, fontSize: 11),
                   )
-                : Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentOrange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                      border: Border.all(
-                          color:
-                              AppTheme.accentOrange.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      '🔥 Save RM${cheaperSaving.toStringAsFixed(2)} at $cheaperRetailer',
-                      style: AppTypography.labelSmall.copyWith(
-                          color: AppTheme.accentOrange, fontSize: 9),
-                    ),
-                  ),
+                : isBestHere
+                    ? Text(
+                        'Best price ✓',
+                        style: AppTypography.bodySmall
+                            .copyWith(color: AppTheme.textTertiary, fontSize: 11),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentOrange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          border: Border.all(
+                              color:
+                                  AppTheme.accentOrange.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          '🔥 Save RM${cheaperSaving.toStringAsFixed(2)} at $cheaperRetailer',
+                          style: AppTypography.labelSmall.copyWith(
+                              color: AppTheme.accentOrange, fontSize: 9),
+                        ),
+                      ),
           ),
         ],
       ),

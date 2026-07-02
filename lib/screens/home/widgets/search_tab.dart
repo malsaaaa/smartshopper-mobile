@@ -66,6 +66,8 @@ class _SearchTabState extends ConsumerState<SearchTab> {
   String? _selectedBrand;
   bool _isScraping = false;
   Timer? _debounceTimer;
+  List<Product>? _shuffledFeaturedProducts;
+  int _lastProductCount = 0;
 
   @override
   void initState() {
@@ -111,6 +113,19 @@ class _SearchTabState extends ConsumerState<SearchTab> {
       // 1. Run live scraping locally
       final results = await scraperService.scrapeAllProducts(category: query.trim());
       
+      // Group counts for debugging
+      final counts = <int, int>{};
+      for (final pair in results) {
+        final rId = pair.$2.retailerId;
+        counts[rId] = (counts[rId] ?? 0) + 1;
+      }
+      
+      if (mounted) {
+        final mydinCount = counts[1] ?? 0;
+        final aeonCount = counts[2] ?? 0;
+        final lotusCount = counts[3] ?? 0;
+      }
+
       // 2. Separate products and prices
       final localProducts = <Product>[];
       final localPrices = <Price>[];
@@ -139,6 +154,14 @@ class _SearchTabState extends ConsumerState<SearchTab> {
       
     } catch (e) {
       debugPrint('Error during live search scraping: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during search: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -159,6 +182,11 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
     return productsAsync.when(
       data: (allProducts) {
+        if (_shuffledFeaturedProducts == null || allProducts.length != _lastProductCount) {
+          _shuffledFeaturedProducts = List<Product>.from(allProducts)..shuffle();
+          _lastProductCount = allProducts.length;
+        }
+
         final excludedBrands = {
           'CAROTINO',
           'CPALIF',
@@ -211,6 +239,22 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                 hint: 'Search Milo, Drinks, Noodles…',
               ),
             ),
+
+            if (showingSearch || _selectedCategory != null || _selectedBrand != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: Text(
+                  showingSearch
+                      ? '${searchResults.length} results for \'$_query\''
+                      : '${allProducts.where((p) => (_selectedCategory != null && p.productType == _selectedCategory) || (_selectedBrand != null && p.category == _selectedBrand)).length} results for \'${_selectedCategory ?? _selectedBrand}\'',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
 
             const SizedBox(height: AppSpacing.md),
 
@@ -285,6 +329,71 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                           const SizedBox(height: AppSpacing.lg),
                         ],
 
+                        // ── Quick Suggestions ─────────────────────────────────
+                        if (_selectedCategory == null && _selectedBrand == null) ...[
+                          Text('Try Searching For', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),
+                          const SizedBox(height: AppSpacing.sm),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                {'label': 'Milo', 'icon': Icons.local_cafe_outlined, 'color': const Color(0xFF7B4F2E)},
+                                {'label': 'Cooking Oil', 'icon': Icons.opacity_outlined, 'color': const Color(0xFFF59E0B)},
+                                {'label': 'Instant Noodles', 'icon': Icons.ramen_dining_outlined, 'color': const Color(0xFFEF4444)},
+                                {'label': 'Rice', 'icon': Icons.grain_outlined, 'color': const Color(0xFF10B981)},
+                                {'label': 'Milk', 'icon': Icons.local_drink_outlined, 'color': const Color(0xFF3B82F6)},
+                                {'label': 'Eggs', 'icon': Icons.egg_outlined, 'color': const Color(0xFFF97316)},
+                              ].map((item) {
+                                final label = item['label'] as String;
+                                final icon = item['icon'] as IconData;
+                                final color = item['color'] as Color;
+                                return GestureDetector(
+                                  onTap: () {
+                                    _searchController.text = label;
+                                    _onSearch(label);
+                                  },
+                                  child: Container(
+                                    width: 88,
+                                    margin: const EdgeInsets.only(right: AppSpacing.sm),
+                                    padding: const EdgeInsets.all(AppSpacing.sm),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                                      border: Border.all(color: color.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: color.withValues(alpha: 0.15),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(icon, color: color, size: 20),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          label,
+                                          style: AppTypography.labelSmall.copyWith(
+                                            color: color,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 10,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                        ],
+
                         // ── Categories (Chips) ────────────────
                         Text('By Category', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),
                         const SizedBox(height: AppSpacing.sm),
@@ -306,6 +415,9 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                                         _selectedCategory = val ? type : null;
                                         if (val) _selectedBrand = null;
                                       });
+                                      if (val) {
+                                        _triggerLiveScrape(type);
+                                      }
                                     },
                                     backgroundColor: AppTheme.background,
                                     selectedColor: AppTheme.primary.withValues(alpha: 0.1),
@@ -342,6 +454,9 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                                         _selectedBrand = val ? brand : null;
                                         if (val) _selectedCategory = null;
                                       });
+                                      if (val) {
+                                        _triggerLiveScrape(brand);
+                                      }
                                     },
                                     backgroundColor: AppTheme.background,
                                     selectedColor: meta.color.withValues(alpha: 0.1),
@@ -394,7 +509,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                           const SizedBox(height: AppSpacing.lg),
                           Text('Featured Products', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),
                           const SizedBox(height: AppSpacing.sm),
-                          ...allProducts.take(10).map((p) => _BrandCard(product: p)),
+                          ...(_shuffledFeaturedProducts ?? allProducts).take(10).map((p) => _BrandCard(product: p)),
                         ],
                         const SizedBox(height: AppSpacing.xxl),
                       ],
@@ -464,6 +579,11 @@ class _BrandCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bestPrice = ref.watch(bestPriceForProductProvider(product.id));
+    final allPrices = ref.watch(pricesForProductProvider(product.id));
+
+    // Sort by price ascending to find cheapest
+    final sortedPrices = [...allPrices]..sort((a, b) => a.price.compareTo(b.price));
+    final cheapestRetailerId = sortedPrices.isNotEmpty ? sortedPrices.first.retailerId : null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -515,55 +635,104 @@ class _BrandCard extends ConsumerWidget {
                     Text(
                       product.description,
                       style: AppTypography.bodySmall.copyWith(color: AppTheme.textSecondary),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (bestPrice != null)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('BEST PRICE', style: AppTypography.labelSmall.copyWith(fontSize: 8, color: AppTheme.textTertiary)),
-                              Text(
-                                'RM ${bestPrice.price.toStringAsFixed(2)}',
-                                style: AppTypography.labelLarge.copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold),
+                    // ── Retailer Price Badges Row ─────────────────────────────
+                    if (sortedPrices.isNotEmpty)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: sortedPrices.map((p) {
+                            final isCheapest = p.retailerId == cheapestRetailerId;
+                            final retailerName = p.retailer?.name ?? 'Store';
+                            return Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isCheapest
+                                    ? AppTheme.primary.withValues(alpha: 0.12)
+                                    : AppTheme.surfaceVariant,
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                                border: Border.all(
+                                  color: isCheapest
+                                      ? AppTheme.primary.withValues(alpha: 0.4)
+                                      : AppTheme.divider,
+                                  width: isCheapest ? 1.2 : 0.8,
+                                ),
                               ),
-                              const SizedBox(height: 2),
-                              Row(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.update_rounded, size: 10, color: AppTheme.textTertiary),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    'Scraped ${_formatScraped(bestPrice.scrapedAt)}',
-                                    style: AppTypography.labelSmall.copyWith(fontSize: 9, color: AppTheme.textTertiary),
+                                  if (isCheapest)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 3),
+                                      child: Icon(Icons.local_offer_rounded, size: 9, color: AppTheme.primary),
+                                    ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        retailerName,
+                                        style: AppTypography.labelSmall.copyWith(
+                                          fontSize: 8,
+                                          color: isCheapest ? AppTheme.primaryDark : AppTheme.textSecondary,
+                                          fontWeight: isCheapest ? FontWeight.bold : FontWeight.normal,
+                                        ),
+                                      ),
+                                      Text(
+                                        'RM ${p.price.toStringAsFixed(2)}',
+                                        style: AppTypography.labelSmall.copyWith(
+                                          fontSize: 10,
+                                          color: isCheapest ? AppTheme.primary : AppTheme.textPrimary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          )
-                        else
-                          const Text('Price unavailable', style: AppTypography.bodySmall),
-                        
-                        IconButton.filledTonal(
-                          onPressed: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              builder: (context) => AddToListSheet(product: product),
                             );
-                          },
-                          icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                          style: IconButton.styleFrom(
-                            backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                            foregroundColor: AppTheme.primary,
-                          ),
+                          }).toList(),
                         ),
-                      ],
-                    ),
+                      )
+                    else if (bestPrice != null)
+                      Text(
+                        'RM ${bestPrice.price.toStringAsFixed(2)}',
+                        style: AppTypography.labelLarge.copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold),
+                      )
+                    else
+                      const Text('Price unavailable', style: AppTypography.bodySmall),
+                    const SizedBox(height: 4),
+                    if (bestPrice != null)
+                      Row(
+                        children: [
+                          Icon(Icons.update_rounded, size: 10, color: AppTheme.textTertiary),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Updated ${_formatScraped(bestPrice.scrapedAt)}',
+                            style: AppTypography.labelSmall.copyWith(fontSize: 9, color: AppTheme.textTertiary),
+                          ),
+                        ],
+                      ),
                   ],
+                ),
+              ),
+              // Add to cart button
+              IconButton.filledTonal(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (context) => AddToListSheet(product: product),
+                  );
+                },
+                icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                  foregroundColor: AppTheme.primary,
                 ),
               ),
             ],
@@ -573,3 +742,4 @@ class _BrandCard extends ConsumerWidget {
     );
   }
 }
+

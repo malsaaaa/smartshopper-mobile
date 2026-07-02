@@ -297,7 +297,11 @@ class BudgetTab extends ConsumerWidget {
 
   Color _getCategoryColor(String category) {
     switch (category) {
-      case 'Drinks': return Colors.lightBlue;
+      case 'Beverages':
+      case 'Drinks':
+        return Colors.lightBlue;
+      case 'Cooking Ingredients':
+        return Colors.purple;
       case 'Instant Noodles': return Colors.amber;
       case 'Rice & Grains': return Colors.green;
       case 'Coffee': return Colors.brown;
@@ -310,67 +314,123 @@ class BudgetTab extends ConsumerWidget {
   }
 
   void _showEditLimitDialog(BuildContext context, WidgetRef ref, double currentLimit) {
-    final controller = TextEditingController(text: currentLimit.toStringAsFixed(0));
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Monthly Limit'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Monthly Limit (RM)', style: AppTypography.labelLarge),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                hintText: 'e.g., 500',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+      builder: (context) {
+        double limitVal = currentLimit > 0 ? currentLimit : 500.0;
+        if (limitVal > 2000) limitVal = 2000;
+        final textController = TextEditingController(text: limitVal.toStringAsFixed(0));
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Monthly Limit'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Limit: RM ${limitVal.toStringAsFixed(0)}', style: AppTypography.labelLarge),
+                    const SizedBox(height: AppSpacing.sm),
+                    Slider(
+                      value: limitVal,
+                      min: 100,
+                      max: 2000,
+                      divisions: 19, // steps of 100
+                      activeColor: AppTheme.primary,
+                      inactiveColor: AppTheme.divider,
+                      onChanged: (val) {
+                        setState(() {
+                          limitVal = val;
+                          textController.text = val.toStringAsFixed(0);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text('Quick Presets', style: AppTypography.bodySmall),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [200, 500, 1000, 1500].map((preset) {
+                        final isSelected = limitVal.round() == preset;
+                        return ChoiceChip(
+                          label: Text('RM $preset'),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() {
+                                limitVal = preset.toDouble();
+                                textController.text = preset.toString();
+                              });
+                            }
+                          },
+                          selectedColor: AppTheme.primaryLight,
+                          checkmarkColor: AppTheme.primaryDark,
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: textController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Custom Limit (RM)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val);
+                        if (parsed != null && parsed >= 100 && parsed <= 2000) {
+                          setState(() {
+                            limitVal = parsed;
+                          });
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newLimitText = controller.text.trim();
-              final newLimit = double.tryParse(newLimitText);
-              if (newLimit == null || newLimit <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid positive limit')),
-                );
-                return;
-              }
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final newLimitText = textController.text.trim();
+                    final newLimit = double.tryParse(newLimitText);
+                    if (newLimit == null || newLimit <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid positive limit')),
+                      );
+                      return;
+                    }
 
-              Navigator.pop(context);
-              
-              try {
-                await ref.read(budgetNotifierProvider.notifier).updateBudgetLimit(newLimit);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Budget limit updated successfully')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error updating budget limit: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+                    Navigator.pop(context);
+                    
+                    try {
+                      await ref.read(budgetNotifierProvider.notifier).updateBudgetLimit(newLimit);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Budget limit updated successfully')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error updating budget limit: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -423,7 +483,11 @@ class _PieChartPainter extends CustomPainter {
 
   Color _getColorFor(String category) {
     switch (category) {
-      case 'Drinks': return Colors.lightBlue;
+      case 'Beverages':
+      case 'Drinks':
+        return Colors.lightBlue;
+      case 'Cooking Ingredients':
+        return Colors.purple;
       case 'Instant Noodles': return Colors.amber;
       case 'Rice & Grains': return Colors.green;
       case 'Coffee': return Colors.brown;

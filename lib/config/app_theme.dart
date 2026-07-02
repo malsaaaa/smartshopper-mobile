@@ -48,8 +48,8 @@ class AppTheme {
   static const Color surfaceVariant = Color(0xFFEFF8F0);
 
   static const Color textPrimary = Color(0xFF1A2E1F);  // Dark navy-black
-  static const Color textSecondary = Color(0xFF6B7280); // Modern grey
-  static const Color textTertiary = Color(0xFFD1D5DB);
+  static const Color textSecondary = Color(0xFF374151); // Darker grey for high contrast readability
+  static const Color textTertiary = Color(0xFF5A606A);  // Medium-dark grey for tertiary text
   static const Color divider = Color(0xFFE5E7EB);       // Modern light grey divider
 
   // ============== COLORS - SPECIAL ==============
@@ -224,9 +224,9 @@ class AppTheme {
         titleLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
         bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: Colors.white),
         bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Colors.white),
-        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFFAAAAAA)),
+        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFFCCCCCC)),
         labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white),
-        labelSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFAAAAAA)),
+        labelSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFCCCCCC)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -255,12 +255,12 @@ class AppTheme {
           horizontal: spacing12,
           vertical: spacing12,
         ),
-        hintStyle: const TextStyle(color: Color(0xFF666666)),
+        hintStyle: const TextStyle(color: Color(0xFF999999)),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: darkSurface,
         selectedItemColor: primary,  // green in dark mode too
-        unselectedItemColor: Color(0xFF666666),
+        unselectedItemColor: Color(0xFF999999),
       ),
     );
   }

@@ -179,17 +179,19 @@ class LotusScraper extends BaseScraper {
           '';
 
       // Build store web link
-      final urlKey = (raw['urlKey'] as String?) ?? (raw['sku'] as String?) ?? '';
-      final productUrl = urlKey.isNotEmpty
-          ? '$_storeFront/product/$urlKey'
-          : _storeFront;
+      // Using the verified '/en/p/<sku>' format which works and redirects correctly
+      final sku = (raw['sku'] as String?) ?? '';
+      final productUrl = sku.isNotEmpty
+          ? 'https://www.lotuss.com.my/en/p/$sku'
+          : 'https://www.lotuss.com.my/en';
 
-      final brand = extractBrand(name);
-      final category = extractCategory(name);
+      final standardizedName = standardizeProductName(name);
+      final brand = extractBrand(standardizedName);
+      final category = extractCategory(standardizedName);
 
       final product = Product(
         id: DateTime.now().millisecondsSinceEpoch,
-        name: name,
+        name: standardizedName,
         description: '',
         category: brand,
         productType: category,
