@@ -453,6 +453,10 @@ body.dark .data-table tr:hover td { background: rgba(255,255,255,.03); }
   transition: all var(--transition);
   margin-right: 4px;
 }
+.action-btn:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
 .action-btn.edit:hover  { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
 .action-btn.delete:hover{ border-color: #c62828; color: #c62828; background: #ffebee; }
 
@@ -759,3 +763,25 @@ body.dark .bar-track { background: #2d3142; }
 }
 .scraper-stat-value { font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1; }
 .scraper-stat-label { font-size: .75rem; color: var(--text-2); margin-top: 4px; }
+
+/* ── Status Badges ──────────────────────────────────────────────────────────── */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-transform: capitalize;
+  text-align: center;
+}
+.status-badge.status-active {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.status-badge.status-inactive {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+

@@ -261,19 +261,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
             // ── Body ────────────────────────────────────────────────────────
             Expanded(
               child: _isScraping
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: AppSpacing.md),
-                          Text(
-                            'Searching stores for live prices...',
-                            style: TextStyle(color: AppTheme.textSecondary),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? const _SearchResultsSkeleton()
                   : showingSearch
                       ? _SearchResults(results: searchResults, query: _query)
                       : ListView(
@@ -354,6 +342,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                                   },
                                   child: Container(
                                     width: 88,
+                                    height: 96,
                                     margin: const EdgeInsets.only(right: AppSpacing.sm),
                                     padding: const EdgeInsets.all(AppSpacing.sm),
                                     decoration: BoxDecoration(
@@ -362,7 +351,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                                       border: Border.all(color: color.withValues(alpha: 0.25)),
                                     ),
                                     child: Column(
-                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.all(8),
@@ -518,7 +507,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
           ],
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const _SearchResultsSkeleton(),
       error: (err, _) => Center(child: Text('Error: $err')),
     );
   }
@@ -742,4 +731,53 @@ class _BrandCard extends ConsumerWidget {
     );
   }
 }
+
+// ── Search results skeleton loader ─────────────────────────────────────────────
+class _SearchResultsSkeleton extends StatelessWidget {
+  const _SearchResultsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      itemCount: 4,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemBuilder: (context, index) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                const Skeleton(width: 80, height: 80),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Skeleton(width: 140, height: 16),
+                      const SizedBox(height: 8),
+                      const Skeleton(width: 100, height: 12),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Skeleton(width: 54, height: 22, borderRadius: BorderRadius.circular(11)),
+                          const SizedBox(width: 8),
+                          Skeleton(width: 54, height: 22, borderRadius: BorderRadius.circular(11)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 

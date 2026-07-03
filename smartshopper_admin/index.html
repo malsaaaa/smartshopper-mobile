@@ -77,6 +77,9 @@
       <a href="#" class="nav-item" data-page="scraper" onclick="showPage('scraper',this)">
         <span class="nav-icon">🕷️</span><span>Scraper</span>
       </a>
+      <a href="#" class="nav-item" data-page="support" onclick="showPage('support',this)">
+        <span class="nav-icon">💬</span><span>Support</span>
+      </a>
       <a href="#" class="nav-item" data-page="settings" onclick="showPage('settings',this)">
         <span class="nav-icon">⚙️</span><span>Settings</span>
       </a>
@@ -539,6 +542,40 @@
       </div>
     </section>
 
+    <!-- ── SUPPORT PAGE ──────────────────────────────────────────────── -->
+    <section class="page" id="page-support">
+      <div class="page-header">
+        <h1>Support Messages</h1>
+        <p>View and manage contact messages from users.</p>
+      </div>
+      <div class="card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
+          <h3 style="margin:0;">User Inquiries & Feedback</h3>
+          <span class="status-badge status-active" id="support-count" style="font-size:0.75rem; padding: 4px 10px;">0 messages</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Sender Name</th>
+                <th>Email Address</th>
+                <th>Subject</th>
+                <th>Message Snippet</th>
+                <th>Status</th>
+                <th style="width: 120px; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="support-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center; padding: 30px; color: var(--text-3)">Loading support messages...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ── MODALS ──────────────────────────────────────────────────────────── -->
@@ -710,5 +747,39 @@
 
   <script src="firebase-config.js?v=1.1.0"></script>
   <script src="app.js?v=1.1.2"></script>
+  <!-- View Support Message Modal -->
+  <div class="modal-overlay" id="support-modal" onclick="closeModalOutside(event,'support-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="support-modal-title">Message Details</h3>
+        <button onclick="closeModal('support-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+          <div>
+            <div style="font-weight:600; font-size:0.95rem; color:var(--text-1);" id="support-modal-name">Name</div>
+            <div style="font-size:0.8rem; color:var(--text-3);" id="support-modal-email">Email</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.8rem; color:var(--text-3);" id="support-modal-date">Date</div>
+            <div style="margin-top: 4px;" id="support-modal-status-badge">Unresolved</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Subject</label>
+          <div style="font-weight: 500; font-size: 1rem; color: var(--text-1); margin-top: 4px;" id="support-modal-subject">Subject line</div>
+        </div>
+        <div class="form-group" style="margin-top: 20px;">
+          <label>Message Content</label>
+          <div style="padding:14px; background:var(--bg); border:1px solid var(--border); borderRadius:var(--radius-md); font-size:0.88rem; color:var(--text-1); line-height:1.6; white-space:pre-wrap; max-height:260px; overflow-y:auto;" id="support-modal-message">Full message...</div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+        <button class="btn-secondary" onclick="closeModal('support-modal')">Close</button>
+        <button class="btn-primary" id="support-resolve-btn">Mark as Resolved</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

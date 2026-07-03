@@ -11,6 +11,7 @@ let products = [];
 let retailers = [];
 let prices = [];
 let users = [];
+let supportMessages = [];
 let notificationHistory = [];
 
 function normalizeRetailerRecord(retailer) {
@@ -196,6 +197,11 @@ async function initDashboard() {
     users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     updateUI('users');
   });
+
+  db.collection('support_messages').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+    supportMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    updateUI('support');
+  });
 }
 
 function updateUI(type) {
@@ -223,7 +229,7 @@ function showPage(page, el) {
   document.getElementById('page-title').textContent =
     { dashboard:'Dashboard', notifications:'Notifications', products:'Products',
       retailers:'Retailers', users:'Users', analytics:'Analytics',
-      scraper:'Scraper', settings:'Settings' }[page] || page;
+      scraper:'Scraper', support:'Support', settings:'Settings' }[page] || page;
 
   // Render immediately with local data
   const refreshMap = {
@@ -234,6 +240,7 @@ function showPage(page, el) {
     analytics: renderAnalytics,
     dashboard: renderDashboard,
     scraper:   renderScraper,
+    support:   renderSupport,
   };
   if (refreshMap[page]) refreshMap[page]();
   
@@ -512,29 +519,73 @@ function renderProducts() {
       }
     }
 
+    // Category-specific badge colors
+    let catStyle = 'background: #F3F4F6; color: #4B5563;';
+    const cat = (p.productType || '').toLowerCase();
+    if (cat.includes('beverage')) {
+      catStyle = 'background: #FEF3C7; color: #D97706;'; // Amber/Orange
+    } else if (cat.includes('cook') || cat.includes('ingredient')) {
+      catStyle = 'background: #E0F2FE; color: #0369A1;'; // Sky Blue
+    } else if (cat.includes('food') || cat.includes('fresh')) {
+      catStyle = 'background: #DCFCE7; color: #15803D;'; // Emerald Green
+    }
+
+    // Retailer badge colors
+    let retStyle = 'background: #F3F4F6; color: #374151;';
+    const ret = p.retailerName.toLowerCase();
+    if (ret.includes('mydin')) {
+      retStyle = 'background: #EEF2FF; color: #4F46E5; border: 1px solid rgba(79, 70, 229, 0.15);'; // Indigo
+    } else if (ret.includes('lotus')) {
+      retStyle = 'background: #ECFDF5; color: #10B981; border: 1px solid rgba(16, 185, 129, 0.15);'; // Emerald
+    } else if (ret.includes('aeon')) {
+      retStyle = 'background: #FDF2F8; color: #DB2777; border: 1px solid rgba(219, 39, 119, 0.15);'; // Pink
+    }
+
     return `
-    <tr>
-      <td style="text-align: center;"><input type="checkbox" class="product-select" data-id="${p.id}" ${isChecked} onchange="toggleProductSelection('${p.id}', this.checked)" style="cursor:pointer;" /></td>
-      <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-3);">${p.id}</td>
-      <td>
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:40px; height:40px; background:var(--bg-2); border-radius:4px; display:grid; place-items:center; overflow:hidden;">
-            ${p.imageUrl ? `<img src="${p.imageUrl}" style="width:100%; height:100%; object-fit:contain" />` : '📦'}
+    <tr style="transition: background-color var(--transition);">
+      <td style="text-align: center; vertical-align: middle;">
+        <input type="checkbox" class="product-select" data-id="${p.id}" ${isChecked} onchange="toggleProductSelection('${p.id}', this.checked)" style="cursor:pointer; width: 16px; height: 16px;" />
+      </td>
+      <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-3); vertical-align: middle; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${p.id}">${p.id}</td>
+      <td style="vertical-align: middle;">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div style="width:48px; height:48px; background:#fff; border:1px solid var(--border); border-radius:8px; display:grid; place-items:center; overflow:hidden; padding: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+            ${p.imageUrl ? `<img src="${p.imageUrl}" style="width:100%; height:100%; object-fit:contain" />` : '<span style="font-size:1.2rem">📦</span>'}
           </div>
           <div>
-            <div style="font-weight:700">${p.name}</div>
-            <div style="font-size:.75rem; color:var(--text-3)">${p.description || p.desc || ''}</div>
+            <div style="font-weight:600; font-size: 0.92rem; color: var(--text);">${p.name}</div>
+            <div style="font-size:.78rem; color:var(--text-3); margin-top:2px;">${p.description || p.desc || ''}</div>
           </div>
         </div>
       </td>
-      <td><strong>${p.retailerName}</strong></td>
-      <td><span style="padding: 4px 8px; background: var(--bg-2); border-radius: 4px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: var(--text);">${p.category || '—'}</span></td>
-      <td><span style="padding: 4px 8px; background: rgba(13, 110, 253, 0.1); color: #0d6efd; border-radius: 4px; font-size: 0.78rem; font-weight: 600;">${p.productType || '—'}</span></td>
-      <td><strong style="color:var(--green-700)">RM ${p.price.toFixed(2)}</strong></td>
-      <td style="color:var(--text-2);font-size:.82rem">${updatedDate}</td>
-      <td>
-        <button class="action-btn edit"   onclick="openEditPriceModal('${p.id}')">✏ Edit</button>
-        <button class="action-btn delete" onclick="deletePrice('${p.id}')">🗑 Delete</button>
+      <td style="vertical-align: middle;">
+        <span style="padding: 6px 12px; border-radius: 30px; font-size: 0.78rem; font-weight: 700; text-transform: capitalize; ${retStyle}">
+          ${p.retailerName}
+        </span>
+      </td>
+      <td style="vertical-align: middle;">
+        <span style="padding: 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 0.75rem; font-weight: 700; color: var(--text-2); letter-spacing: 0.2px;">
+          ${p.category || '—'}
+        </span>
+      </td>
+      <td style="vertical-align: middle;">
+        <span style="padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; ${catStyle}">
+          ${p.productType || '—'}
+        </span>
+      </td>
+      <td style="vertical-align: middle;">
+        <strong style="color: #10B981; font-size: 0.95rem; font-weight: 700;">RM ${p.price.toFixed(2)}</strong>
+      </td>
+      <td style="color:var(--text-3); font-size:.78rem; vertical-align: middle;">${updatedDate}</td>
+      <td style="vertical-align: middle; text-align: center;">
+        <div style="display:flex; gap:8px; justify-content:center; align-items:center;">
+          <button class="action-btn" title="Edit Price" onclick="openEditPriceModal('${p.id}')" style="width:32px; height:32px; padding:0; display:grid; place-items:center; border-radius:50%; background: rgba(13, 110, 253, 0.08); color: #0d6efd; border:none;">
+            ✏️
+          </button>
+          <button class="action-btn" title="Delete Price" onclick="deletePrice('${p.id}')" style="width:32px; height:32px; padding:0; display:grid; place-items:center; border-radius:50%; background: rgba(220, 53, 69, 0.08); color: #dc3545; border:none;">
+            🗑️
+          </button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -1583,3 +1634,107 @@ window.sortProducts = sortProducts;
 window.toggleProductSelection = toggleProductSelection;
 window.toggleAllProductSelection = toggleAllProductSelection;
 window.deleteSelectedProducts = deleteSelectedProducts;
+
+// ── Support Messages ─────────────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderSupport() {
+  const tbody = document.getElementById('support-tbody');
+  const countEl = document.getElementById('support-count');
+  if (!tbody) return;
+
+  countEl.textContent = `${supportMessages.length} message${supportMessages.length === 1 ? '' : 's'}`;
+
+  if (supportMessages.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 30px; color: var(--text-3)">No support messages found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = supportMessages.map(msg => {
+    const dateStr = msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleString() : 'Pending...';
+    const snippet = msg.message.length > 50 ? msg.message.substring(0, 50) + '...' : msg.message;
+    const statusClass = msg.resolved ? 'status-active' : 'status-inactive';
+    const statusText = msg.resolved ? 'Resolved' : 'Unresolved';
+    return `
+      <tr>
+        <td>${dateStr}</td>
+        <td style="font-weight:500;">${escapeHtml(msg.name)}</td>
+        <td><a href="mailto:${escapeHtml(msg.email)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(msg.email)}</a></td>
+        <td style="font-weight:500;">${escapeHtml(msg.subject)}</td>
+        <td style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(msg.message)}">${escapeHtml(snippet)}</td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        <td style="text-align:center;">
+          <div style="display:flex; gap:6px; justify-content:center;">
+            <button class="action-btn" title="View details" onclick="viewSupportMessage('${msg.id}')">👁️</button>
+            <button class="action-btn" title="Delete message" onclick="deleteSupportMessage('${msg.id}')" style="color:var(--danger); border:none; background:none; cursor:pointer;">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function viewSupportMessage(id) {
+  const msg = supportMessages.find(m => m.id === id);
+  if (!msg) return;
+
+  document.getElementById('support-modal-name').textContent = msg.name;
+  document.getElementById('support-modal-email').textContent = msg.email;
+  document.getElementById('support-modal-email').href = `mailto:${msg.email}`;
+  document.getElementById('support-modal-date').textContent = msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleString() : 'Pending...';
+  
+  const statusBadge = document.getElementById('support-modal-status-badge');
+  statusBadge.className = `status-badge ${msg.resolved ? 'status-active' : 'status-inactive'}`;
+  statusBadge.textContent = msg.resolved ? 'Resolved' : 'Unresolved';
+
+  document.getElementById('support-modal-subject').textContent = msg.subject;
+  document.getElementById('support-modal-message').textContent = msg.message;
+
+  const resolveBtn = document.getElementById('support-resolve-btn');
+  if (msg.resolved) {
+    resolveBtn.textContent = 'Mark as Unresolved';
+    resolveBtn.className = 'btn-secondary';
+    resolveBtn.onclick = () => updateSupportStatus(id, false);
+  } else {
+    resolveBtn.textContent = 'Mark as Resolved';
+    resolveBtn.className = 'btn-primary';
+    resolveBtn.onclick = () => updateSupportStatus(id, true);
+  }
+
+  openModal('support-modal');
+}
+
+async function updateSupportStatus(id, resolved) {
+  try {
+    await db.collection('support_messages').doc(id).update({ resolved });
+    closeModal('support-modal');
+    showToast(`Message marked as ${resolved ? 'resolved' : 'unresolved'}`);
+  } catch (error) {
+    showToast(`Error updating message status: ${error.message}`);
+  }
+}
+
+async function deleteSupportMessage(id) {
+  if (!confirm('Are you sure you want to delete this support message?')) return;
+  try {
+    await db.collection('support_messages').doc(id).delete();
+    showToast('Support message deleted');
+  } catch (error) {
+    showToast(`Error deleting support message: ${error.message}`);
+  }
+}
+
+window.renderSupport = renderSupport;
+window.viewSupportMessage = viewSupportMessage;
+window.deleteSupportMessage = deleteSupportMessage;
+window.updateSupportStatus = updateSupportStatus;
+

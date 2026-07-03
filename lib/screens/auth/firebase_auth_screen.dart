@@ -15,6 +15,7 @@ class FirebaseAuthScreen extends ConsumerStatefulWidget {
 
 class _FirebaseAuthScreenState extends ConsumerState<FirebaseAuthScreen> {
   bool isSignUp = false;
+  bool _obscurePassword = true;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
@@ -218,15 +219,34 @@ class _FirebaseAuthScreenState extends ConsumerState<FirebaseAuthScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
                   controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  enabled: !isLoading,
                   decoration: InputDecoration(
                     hintText: 'Enter your password',
                     prefixIcon: const Icon(Icons.lock_outlined),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
+                    suffixIcon: IconButton(
+                      tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, anim) =>
+                            ScaleTransition(scale: anim, child: child),
+                        child: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          key: ValueKey(_obscurePassword),
+                          color: _obscurePassword
+                              ? AppTheme.textTertiary
+                              : AppTheme.primary,
+                          size: 22,
+                        ),
+                      ),
+                    ),
                   ),
-                  obscureText: true,
-                  enabled: !isLoading,
                 ),
                 const SizedBox(height: AppSpacing.sm),
 

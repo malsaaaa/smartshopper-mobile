@@ -193,10 +193,21 @@ class _CustomTextFieldState extends State<CustomTextField> {
                 widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
             suffixIcon: widget.isPassword
                 ? IconButton(
-                    icon: Icon(
-                      _obscureText
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                    tooltip: _obscureText ? 'Show password' : 'Hide password',
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, anim) =>
+                          ScaleTransition(scale: anim, child: child),
+                      child: Icon(
+                        _obscureText
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        key: ValueKey(_obscureText),
+                        color: _obscureText
+                            ? AppTheme.textTertiary
+                            : AppTheme.primary,
+                        size: 22,
+                      ),
                     ),
                     onPressed: () {
                       setState(() {
@@ -864,6 +875,7 @@ class ListItemTile extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final Color? titleColor;
 
   const ListItemTile({
     super.key,
@@ -872,6 +884,7 @@ class ListItemTile extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.titleColor,
   });
 
   @override
@@ -901,7 +914,9 @@ class ListItemTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: titleColor,
+                    ),
                   ),
                   if (subtitle != null)
                     Padding(
@@ -1260,3 +1275,66 @@ String getRetailerLogo(String name, String? currentUrl) {
 
   return (currentUrl == 'null') ? '' : (currentUrl ?? '');
 }
+
+// ── Pulse Skeleton Loader Widget ──────────────────────────────────────────────
+class Skeleton extends StatefulWidget {
+  final double? width;
+  final double? height;
+  final BorderRadiusGeometry? borderRadius;
+  final EdgeInsetsGeometry? margin;
+
+  const Skeleton({
+    super.key,
+    this.width,
+    this.height,
+    this.borderRadius,
+    this.margin,
+  });
+
+  @override
+  State<Skeleton> createState() => _SkeletonState();
+}
+
+class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Color?> _colorAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
+    _colorAnimation = ColorTween(
+      begin: const Color(0xFFE5E7EB), // Tailwind grey-200
+      end: const Color(0xFFF3F4F6),   // Tailwind grey-100
+    ).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _colorAnimation,
+      builder: (context, child) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          margin: widget.margin,
+          decoration: BoxDecoration(
+            color: _colorAnimation.value,
+            borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+          ),
+        );
+      },
+    );
+  }
+}
+

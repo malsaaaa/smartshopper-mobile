@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartshopper_mobile/screens/home/home_screen.dart';
 import 'package:smartshopper_mobile/screens/auth/firebase_auth_screen.dart';
 import 'package:smartshopper_mobile/providers/web_scraper_provider.dart';
+import 'package:smartshopper_mobile/screens/splash/splash_screen.dart';
 
 // Global navigatorKey for handling push notification navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -86,6 +87,7 @@ void _handleNotificationTap(String? route, Map<String, dynamic>? data) {
   );
 }
 
+
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
@@ -105,7 +107,7 @@ class MyApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       onGenerateRoute: RoutesConfig.generateRoute,
-      home: const AuthGuard(),
+      home: const SplashScreen(),
       navigatorKey: navigatorKey,
       navigatorObservers: [AppRouteObserver()],
       debugShowCheckedModeBanner: false,

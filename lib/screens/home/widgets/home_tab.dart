@@ -179,18 +179,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(AppSpacing.sm),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryLight,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.shopping_basket_outlined,
-                            color: AppTheme.primaryDark,
-                            size: 24,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -205,13 +193,86 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // skeleton budget
-                  BaseCard(child: SizedBox(height: 92, child: Center(child: CircularProgressIndicator()))),
+                  // Skeleton Budget Card
+                  BaseCard(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Skeleton(width: 120, height: 16),
+                            const Skeleton(width: 60, height: 16),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        const Skeleton(width: double.infinity, height: 8),
+                        const SizedBox(height: AppSpacing.md),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Skeleton(width: 80, height: 12),
+                            const Skeleton(width: 80, height: 12),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
+                  
+                  // My Favorites Header
                   SectionHeader(title: 'My Favorites', subtitle: 'Quick access'),
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
+                  
+                  // Skeleton Favorites Horizontal Row
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(4, (index) => Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.md),
+                        child: Column(
+                          children: [
+                            const Skeleton(width: 56, height: 56, borderRadius: BorderRadius.all(Radius.circular(28))),
+                            const SizedBox(height: AppSpacing.xs),
+                            const Skeleton(width: 50, height: 10),
+                          ],
+                        ),
+                      )),
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
+                  
+                  // Live Price Tracker Header
                   SectionHeader(title: 'Live Price Tracker', subtitle: 'Recently scanned supermarket prices'),
+                  const SizedBox(height: AppSpacing.md),
+                  
+                  // Skeleton List of Live Price Cards
+                  Column(
+                    children: List.generate(3, (index) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: BaseCard(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Row(
+                          children: [
+                            const Skeleton(width: 48, height: 48),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Skeleton(width: 140, height: 14),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  const Skeleton(width: 80, height: 10),
+                                ],
+                              ),
+                            ),
+                            const Skeleton(width: 60, height: 16),
+                          ],
+                        ),
+                      ),
+                    )),
+                  ),
                 ],
               ),
             ),
@@ -300,18 +361,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(AppSpacing.sm),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryLight,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.shopping_basket_outlined,
-                              color: AppTheme.primaryDark,
-                              size: 24,
                             ),
                           ),
                         ],
@@ -466,11 +515,31 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                               .toList(),
                         );
                       },
-                      loading: () => const Center(
-                          child: Padding(
-                        padding: EdgeInsets.all(AppSpacing.xl),
-                        child: CircularProgressIndicator(),
-                      )),
+                      loading: () => Column(
+                        children: List.generate(3, (index) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: BaseCard(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Row(
+                              children: [
+                                const Skeleton(width: 40, height: 40),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Skeleton(width: 120, height: 12),
+                                      const SizedBox(height: 6),
+                                      const Skeleton(width: 70, height: 10),
+                                    ],
+                                  ),
+                                ),
+                                const Skeleton(width: 50, height: 14),
+                              ],
+                            ),
+                          ),
+                        )),
+                      ),
                       error: (err, _) => Center(child: Text('Error: $err')),
                     ),
                   ],

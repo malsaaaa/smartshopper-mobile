@@ -4,16 +4,26 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:smartshopper_mobile/config/app_strings.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
+import 'package:smartshopper_mobile/screens/support/contact_us_screen.dart';
+import 'package:smartshopper_mobile/screens/support/help_center_screen.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 
-class ProfileTab extends ConsumerWidget {
+class ProfileTab extends ConsumerStatefulWidget {
   const ProfileTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends ConsumerState<ProfileTab> {
+  @override
+  Widget build(BuildContext context) {
     final isLoggedIn = ref.watch(isUserLoggedInProvider);
+    final s = ref.watch(stringsProvider);
+    final langCode = ref.watch(languageProvider);
 
     if (!isLoggedIn) {
       return _LoginPrompt();
@@ -48,7 +58,7 @@ class ProfileTab extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: AppSpacing.sm),
                       child: StatusBadge(
-                        label: 'Signed In',
+                        label: s.signedIn,
                         status: StatusType.success,
                       ),
                     ),
@@ -57,56 +67,98 @@ class ProfileTab extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xxl),
 
-              // ----- Theme Toggle -----
-              _ThemeToggleTile(),
-              const Divider(height: 0),
+              // ── Account ──────────────────────────────────────────────────
+              _SectionHeader(label: s.sectionAccount),
+              const SizedBox(height: AppSpacing.sm),
+              _MenuCard(
+                children: [
+                  ListItemTile(
+                    leading: const Icon(Icons.settings_outlined, color: AppTheme.primary),
+                    title: s.accountSettings,
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
+                    onTap: () => Navigator.pushNamed(context, '/account-settings'),
+                  ),
+                  const Divider(height: 0, indent: 56),
+                  ListItemTile(
+                    leading: const Icon(Icons.favorite_border, color: Colors.pink),
+                    title: s.favorites,
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
+                    onTap: () => Navigator.pushNamed(context, '/favorites'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-              // ----- Menu Items -----
-              ListItemTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: 'Account Settings',
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () =>
-                    Navigator.pushNamed(context, '/account-settings'),
+              // ── Preferences ───────────────────────────────────────────────
+              _SectionHeader(label: s.sectionPrefs),
+              const SizedBox(height: AppSpacing.sm),
+              _MenuCard(
+                children: [
+                  _ThemeToggleTile(),
+                  const Divider(height: 0, indent: 56),
+                  ListItemTile(
+                    leading: const Icon(Icons.notifications_outlined, color: Color(0xFF8B5CF6)),
+                    title: s.notifications,
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
+                    onTap: () => Navigator.pushNamed(context, '/notifications'),
+                  ),
+                  const Divider(height: 0, indent: 56),
+                  _LanguageTile(
+                    s: s,
+                    currentCode: langCode,
+                    onChanged: (code) =>
+                        ref.read(languageProvider.notifier).setLanguage(code),
+                  ),
+                ],
               ),
-              const Divider(height: 0),
-              ListItemTile(
-                leading: const Icon(Icons.favorite_border, color: Colors.pink),
-                title: 'Favorites',
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => Navigator.pushNamed(context, '/favorites'),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Support ───────────────────────────────────────────────────
+              _SectionHeader(label: s.sectionSupport),
+              const SizedBox(height: AppSpacing.sm),
+              _MenuCard(
+                children: [
+                  ListItemTile(
+                    leading: const Icon(Icons.help_outline_rounded, color: Color(0xFF10B981)),
+                    title: s.helpCenter,
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => HelpCenterScreen(s: s),
+                    )),
+                  ),
+                  const Divider(height: 0, indent: 56),
+                  ListItemTile(
+                    leading: const Icon(Icons.mail_outline_rounded, color: Color(0xFFF59E0B)),
+                    title: s.contactUs,
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => ContactUsScreen(s: s),
+                    )),
+                  ),
+                  const Divider(height: 0, indent: 56),
+                  ListItemTile(
+                    leading: const Icon(Icons.info_outlined, color: Color(0xFF3B82F6)),
+                    title: s.about,
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
+                    onTap: () => Navigator.pushNamed(context, '/about'),
+                  ),
+                  const Divider(height: 0, indent: 56),
+                  ListItemTile(
+                    leading: const Icon(Icons.logout, color: AppTheme.error),
+                    title: s.signOut,
+                    titleColor: AppTheme.error,
+                    trailing: const SizedBox.shrink(),
+                    onTap: () async {
+                      final authService = ref.read(firestoreAuthServiceProvider);
+                      await authService.signOut();
+                      if (context.mounted) {
+                        Navigator.pushReplacementNamed(context, '/firebase-auth');
+                      }
+                    },
+                  ),
+                ],
               ),
-              const Divider(height: 0),
-              ListItemTile(
-                leading: const Icon(Icons.notifications_outlined),
-                title: 'Notifications',
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () =>
-                    Navigator.pushNamed(context, '/notifications'),
-              ),
-              const Divider(height: 0),
-              ListItemTile(
-                leading: const Icon(Icons.info_outlined),
-                title: 'About SmartShopper',
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => Navigator.pushNamed(context, '/about'),
-              ),
-              const Divider(height: 0),
-              ListItemTile(
-                leading:
-                    const Icon(Icons.logout, color: AppTheme.error),
-                title: 'Sign Out',
-                trailing: const SizedBox.shrink(),
-                onTap: () async {
-                  final authService =
-                      ref.read(firestoreAuthServiceProvider);
-                  await authService.signOut();
-                  if (context.mounted) {
-                    Navigator.pushReplacementNamed(
-                        context, '/firebase-auth');
-                  }
-                },
-              ),
+              const SizedBox(height: AppSpacing.xl),
             ],
           ),
         );
@@ -423,6 +475,177 @@ class _LoginPrompt extends StatelessWidget {
               onPressed: () =>
                   Navigator.pushNamed(context, '/firebase-auth'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Section header label ───────────────────────────────────────────────────────
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text(
+          label.toUpperCase(),
+          style: AppTypography.labelSmall.copyWith(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textTertiary,
+            letterSpacing: 1.1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Card container grouping menu items ────────────────────────────────────────
+class _MenuCard extends StatelessWidget {
+  final List<Widget> children;
+  const _MenuCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
+    );
+  }
+}
+
+// ── Language selector tile ─────────────────────────────────────────────────────
+class _LanguageTile extends StatelessWidget {
+  final AppStrings s;
+  final String currentCode;   // 'en' or 'ms'
+  final ValueChanged<String> onChanged;  // passes language code
+
+  const _LanguageTile({
+    required this.s,
+    required this.currentCode,
+    required this.onChanged,
+  });
+
+  static const _languages = [
+    {'code': 'en', 'flag': '🇬🇧'},
+    {'code': 'ms', 'flag': '🇲🇾'},
+  ];
+
+  void _showPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppTheme.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(s.selectLanguage, style: AppTypography.headline3),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ..._languages.map((lang) {
+                  final code = lang['code']!;
+                  final flag = lang['flag']!;
+                  final isSelected = currentCode == code;
+                  final displayName = code == 'en' ? s.english : s.bahasaMalaysia;
+                  return ListTile(
+                    leading: Text(flag, style: const TextStyle(fontSize: 26)),
+                    title: Text(
+                      displayName,
+                      style: AppTypography.bodyMedium.copyWith(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle_rounded, color: AppTheme.primary)
+                        : const Icon(Icons.circle_outlined, color: AppTheme.textTertiary),
+                    onTap: () {
+                      onChanged(code);
+                      Navigator.pop(context);
+                    },
+                  );
+                }),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = currentCode == 'en' ? s.english : s.bahasaMalaysia;
+    return InkWell(
+      onTap: () => _showPicker(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spacing16,
+          vertical: AppTheme.spacing12,
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.language_outlined, color: Color(0xFF10B981)),
+            const SizedBox(width: AppTheme.spacing12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.language, style: Theme.of(context).textTheme.bodyLarge),
+                  const SizedBox(height: 2),
+                  Text(
+                    displayName,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textTertiary),
           ],
         ),
       ),
