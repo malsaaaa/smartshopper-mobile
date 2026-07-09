@@ -535,7 +535,11 @@
             <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
               <h3 style="font-size: .9rem; margin-bottom: 8px; color: var(--text-2);">Database Management</h3>
               <p style="font-size: .75rem; color: var(--text-3); margin-bottom: 12px;">Wipe all products, prices, and retailers from Firestore.</p>
-              <button class="btn-danger" onclick="clearDatabase()" style="width: 100%;">🗑 Clear Database</button>
+              <button class="btn-danger" onclick="clearDatabase()" style="width: 100%; margin-bottom: 12px;">🗑 Clear Database</button>
+              
+              <h3 style="font-size: .9rem; margin-top: 16px; margin-bottom: 8px; color: var(--text-2);">Product Deduplication (AI)</h3>
+              <p style="font-size: .75rem; color: var(--text-3); margin-bottom: 12px;">Merge duplicate product records from different retailers using text similarity NLP matching.</p>
+              <button class="btn-primary" onclick="deduplicateDatabase()" style="width: 100%; background: #10B981; border-color: #10B981;">🧠 Run AI Deduplication</button>
             </div>
           </div>
         </div>

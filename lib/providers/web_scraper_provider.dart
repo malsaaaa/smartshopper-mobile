@@ -14,7 +14,9 @@ final webScraperListenerProvider = Provider<WebScraperListener?>((ref) {
   final userAsync = ref.watch(firestoreUserNotifierProvider);
   final isAdmin = userAsync.value?.isAdmin ?? false;
 
-  if (!isAdmin) {
+  // Bypassed for development so that scraping can be triggered on any debug device/emulator
+  const bool devForceListener = true;
+  if (!isAdmin && !devForceListener) {
     return null;
   }
 

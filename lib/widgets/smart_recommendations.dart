@@ -4,6 +4,7 @@ import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 // ─── Data classes ────────────────────────────────────────────────────────────
 
@@ -40,10 +41,9 @@ class SmartRecommendations extends ConsumerStatefulWidget {
       _SmartRecommendationsState();
 }
 
-// Normalize product name for matching (removes spaces, casing, and special chars)
-String _getProductMatchKey(String name) {
-  return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-}
+// Use the shared getProductMatchKey from product_utils.dart for consistent grouping.
+// (Delegates to getProductMatchKey which handles brand + variant + exact size.)
+String _getProductMatchKey(String name) => getProductMatchKey(name);
 
 class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
   String? _selectedRetailer; // Selected retailer for visual breakdown

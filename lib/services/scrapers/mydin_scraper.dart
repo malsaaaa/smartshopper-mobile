@@ -18,13 +18,12 @@ class MyDinScraper extends BaseScraper {
   static const int defaultCategoryId = 1222;
   static const int defaultPageSize = 48;
   
-  // Search keywords used for background updates
   static const List<String> searchTerms = [
-    'cooking oil 5kg',
-    'milo 1kg',
-    'maggi curry 5 pack',
-    'tea bags',
-    'rice 10kg',
+    'cooking oil',
+    'milo',
+    'maggi curry',
+    'tea',
+    'rice',
   ];
 
   @override

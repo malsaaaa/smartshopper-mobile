@@ -4,6 +4,7 @@ import 'package:smartshopper_mobile/services/scrapers/base_scraper.dart';
 import 'package:smartshopper_mobile/services/scrapers/mydin_scraper.dart';
 import 'package:smartshopper_mobile/services/scrapers/myaeon2go_scraper.dart';
 import 'package:smartshopper_mobile/services/scrapers/lotus_scraper.dart';
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 /// Web scraper service that manages all retailer scrapers
 /// Coordinates scraping across multiple retailers and stores data in Firestore
@@ -63,10 +64,61 @@ class WebScraperService {
     return results;
   }
 
+  /// Resolve in-memory scraped items against each other and the current catalog
+  List<(Product, Price)> resolveInMemoryProducts(List<(Product, Price)> items, List<Product> existingProducts) {
+    final List<(Product, Price)> resolved = [];
+    final List<Product> tempProducts = List.from(existingProducts);
+
+    for (final (product, price) in items) {
+      // Resolve stable unified product ID (either reuse a match or build a global hash)
+      final stableProductId = _resolveProductEntity(product.name, product.productType, tempProducts);
+
+      // Create a unified product copy with the resolved ID
+      final unifiedProduct = Product(
+        id: stableProductId,
+        name: product.name,
+        description: product.description,
+        imageUrl: product.imageUrl,
+        category: product.category,
+        productType: product.productType,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      );
+
+      // Cache it locally so subsequent items in this same search match it
+      if (!tempProducts.any((p) => p.id == stableProductId)) {
+        tempProducts.add(unifiedProduct);
+      }
+
+      // Create a price copy linked to the resolved product ID
+      final unifiedPrice = Price(
+        id: price.id,
+        productId: stableProductId,
+        retailerId: price.retailerId,
+        price: price.price,
+        productUrl: price.productUrl,
+        scrapedAt: price.scrapedAt,
+        createdAt: price.createdAt,
+        updatedAt: price.updatedAt,
+      );
+
+      resolved.add((unifiedProduct, unifiedPrice));
+    }
+
+    return resolved;
+  }
+
   /// Scrape all registered retailers concurrently in parallel (for in-memory cache)
   Future<List<(Product, Price)>> scrapeAllProducts({
     String? category,
   }) async {
+    // 1. Fetch current catalog for live in-memory entity resolution
+    List<Product> existingProducts = [];
+    try {
+      final snapshot = await _db.collection('products').get();
+      existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
+    } catch (_) {}
+
     final tasks = _scrapers.entries.map((entry) async {
       try {
         final products = await entry.value.scrapeProducts(category: category);
@@ -82,7 +134,9 @@ class WebScraperService {
     for (final list in results) {
       all.addAll(list);
     }
-    return all;
+    
+    // 2. Perform live in-memory AI entity resolution before returning to the search screens
+    return resolveInMemoryProducts(all, existingProducts);
   }
 
   /// Trigger scrape for a single retailer
@@ -195,8 +249,180 @@ class WebScraperService {
     }
   }
 
-  /// Save products and prices using Firestore batch writes
+
+
+  /// Sørensen-Dice coefficient bigram character similarity (robust to typos and word variations)
+  double _diceSimilarity(String s1, String s2) {
+    s1 = s1.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    s2 = s2.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    if (s1 == s2) return 1.0;
+    if (s1.length < 2 || s2.length < 2) return 0.0;
+
+    final pairs1 = <String>{};
+    for (int i = 0; i < s1.length - 1; i++) {
+      pairs1.add(s1.substring(i, i + 2));
+    }
+
+    final pairs2 = <String>{};
+    for (int i = 0; i < s2.length - 1; i++) {
+      pairs2.add(s2.substring(i, i + 2));
+    }
+
+    final intersection = pairs1.intersection(pairs2).length;
+    return (2.0 * intersection) / (pairs1.length + pairs2.length);
+  }
+
+  /// Model representation of parsed weight/volume quantities for precise resolution
+  ScraperParsedQty? _parseQuantity(String name) {
+    final lower = name.toLowerCase();
+    
+    // 1. Check for multipack formats: e.g., "4 x 80g", "4x23.5g", "12 x 1l", "26 x 33g", "12 x 1L"
+    final multipackRegex = RegExp(
+      r'(\d+)\s*(?:x|pcs|packets|teabags|bags|sticks|s|packets\s*x)\s*(\d+(?:\.\d+)?)\s*(kg|g|l|ml|kg|s)\b', 
+      caseSensitive: false
+    );
+    final multiMatch = multipackRegex.firstMatch(lower);
+    if (multiMatch != null) {
+      final int mult = int.tryParse(multiMatch.group(1)!) ?? 1;
+      final double value = double.tryParse(multiMatch.group(2)!) ?? 0.0;
+      final String rawUnit = multiMatch.group(3)!;
+      
+      String normUnit = 'g';
+      double multiplierValue = 1.0;
+      if (rawUnit == 'kg') { normUnit = 'g'; multiplierValue = 1000.0; }
+      else if (rawUnit == 'g') { normUnit = 'g'; multiplierValue = 1.0; }
+      else if (rawUnit == 'l') { normUnit = 'ml'; multiplierValue = 1000.0; }
+      else if (rawUnit == 'ml') { normUnit = 'ml'; multiplierValue = 1.0; }
+      else if (rawUnit == 's') { normUnit = 's'; multiplierValue = 1.0; }
+      
+      return ScraperParsedQty(
+        totalValue: value * multiplierValue * mult,
+        unit: normUnit,
+        multiplier: mult,
+        singleValue: value * multiplierValue,
+      );
+    }
+    
+    // 2. Check for single weight/volume values: e.g. "5kg", "500g", "1l", "1.5l", "250ml", "100s"
+    final singleRegex = RegExp(r'(\d+(?:\.\d+)?)\s*(kg|g|l|ml|s)\b', caseSensitive: false);
+    final singleMatch = singleRegex.firstMatch(lower);
+    if (singleMatch != null) {
+      final double value = double.tryParse(singleMatch.group(1)!) ?? 0.0;
+      final String rawUnit = singleMatch.group(2)!;
+      
+      String normUnit = 'g';
+      double multiplierValue = 1.0;
+      if (rawUnit == 'kg') { normUnit = 'g'; multiplierValue = 1000.0; }
+      else if (rawUnit == 'g') { normUnit = 'g'; multiplierValue = 1.0; }
+      else if (rawUnit == 'l') { normUnit = 'ml'; multiplierValue = 1000.0; }
+      else if (rawUnit == 'ml') { normUnit = 'ml'; multiplierValue = 1.0; }
+      else if (rawUnit == 's') { normUnit = 's'; multiplierValue = 1.0; }
+      
+      return ScraperParsedQty(
+        totalValue: value * multiplierValue,
+        unit: normUnit,
+        multiplier: 1,
+        singleValue: value * multiplierValue,
+      );
+    }
+    
+    return null;
+  }
+
+  /// Resolves the product ID using NLP token-matching, brand matching, and volume comparison
+  int _resolveProductEntity(String name, String category, List<Product> existingProducts) {
+    final brand = extractBrand(name);
+    final scraperQty = _parseQuantity(name);
+
+    // List of packaging/filler terms to exclude during Jaccard token calculations
+    final stopWords = {
+      'pack', 'packets', 'pouch', 'bag', 'bags', 'sticks', 'pcs', 'rtd', 
+      'ready', 'to', 'drink', 'in', 'original', 'value', 'super', 'mega', 'mp'
+    };
+
+    double bestScore = 0.0;
+    Product? bestMatch;
+    double bestThreshold = 0.52;
+
+    for (final existing in existingProducts) {
+      // 1. Product Type (Category) must match (e.g. Cooking Ingredients vs Beverages)
+      if (existing.productType != category) continue;
+      
+      // 2. Brand must match
+      final existingBrand = extractBrand(existing.name);
+      if (existingBrand != brand) continue;
+
+      // 3. Mathematical Quantity/Multipack safety check
+      final existingQty = _parseQuantity(existing.name);
+      
+      bool qtyMatch = true;
+      double threshold = 0.52; // Default required matching confidence (52%)
+      
+      if (scraperQty != null && existingQty != null) {
+        // Strict matching: both sizes defined
+        if (scraperQty.unit != existingQty.unit ||
+            scraperQty.multiplier != existingQty.multiplier ||
+            (scraperQty.singleValue - existingQty.singleValue).abs() > 0.01) {
+          qtyMatch = false;
+        }
+      } else if ((scraperQty == null && existingQty != null) || (scraperQty != null && existingQty == null)) {
+        // Pragmatic matching: only one has size. Allow merge if similarity is extremely high (>= 75%)
+        threshold = 0.75;
+      }
+      
+      if (!qtyMatch) continue; // Size mismatch -> reject merge!
+
+      // 4. Jaccard token similarity with stopword filtering
+      final tokens1 = name.toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+          .split(' ')
+          .where((w) => w.length > 1 && !stopWords.contains(w))
+          .toSet();
+          
+      final tokens2 = existing.name.toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+          .split(' ')
+          .where((w) => w.length > 1 && !stopWords.contains(w))
+          .toSet();
+      
+      if (tokens1.isEmpty || tokens2.isEmpty) continue;
+      final jaccardScore = tokens1.intersection(tokens2).length / tokens1.union(tokens2).length;
+
+      // 5. Sørensen-Dice bigram similarity
+      final diceScore = _diceSimilarity(name, existing.name);
+
+      // 6. Compute hybrid confidence score (average of bigram Dice and Jaccard)
+      final hybridScore = (jaccardScore + diceScore) / 2.0;
+
+      if (hybridScore >= threshold && hybridScore > bestScore) {
+        bestScore = hybridScore;
+        bestMatch = existing;
+        bestThreshold = threshold;
+      }
+    }
+
+    // Reuse ID if matches meet the required similarity threshold
+    if (bestMatch != null) {
+      print('🤖 Entity Resolution: Merged "$name" with existing "${bestMatch.name}" (Similarity: ${(bestScore*100).toStringAsFixed(0)}%)');
+      return bestMatch.id;
+    }
+
+    // Default clean global product ID
+    return parseStableId(_stableKey(name));
+  }
+
+  /// Save products and prices using Firestore batch writes with Entity Matching
   Future<void> _storeProducts(List<(Product, Price)> products) async {
+    // 1. Fetch current catalog for entity matching
+    List<Product> existingProducts = [];
+    try {
+      final snapshot = await _db.collection('products').get();
+      existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
+      print('🤖 Loaded ${existingProducts.length} existing products for similarity deduplication.');
+    } catch (e) {
+      print('⚠️ Failed to pre-load catalog. Scraping will default to exact string hashes: $e');
+    }
+
     // Batch operations chunk size (max 500 writes limit, using 200 pairs = 400 writes)
     const int chunkSize = 200;
     int totalStored = 0;
@@ -210,10 +436,24 @@ class WebScraperService {
         final batch = _db.batch();
 
         for (final (product, price) in chunk) {
-          // Generate a unique, stable doc ID for product
-          final stableProductId = '${price.retailerId}_${_stableKey(product.name)}';
+          // Resolve stable unified product ID (either reuse a match or build a global hash)
+          final stableProductId = _resolveProductEntity(product.name, product.productType, existingProducts);
 
-          final productDoc = _db.collection('products').doc(stableProductId);
+          // Add this to our local listing for batch matching (so items in the same scraping job merge)
+          if (!existingProducts.any((p) => p.id == stableProductId)) {
+            existingProducts.add(Product(
+              id: stableProductId,
+              name: product.name,
+              description: product.description,
+              imageUrl: product.imageUrl,
+              category: product.category,
+              productType: product.productType,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ));
+          }
+
+          final productDoc = _db.collection('products').doc(stableProductId.toString());
           batch.set(
             productDoc,
             {
@@ -360,4 +600,19 @@ class WebScraperService {
       print('❌ Error clearing data: $e');
     }
   }
+}
+
+/// Helper model class representing parsed quantity configurations for entity resolution
+class ScraperParsedQty {
+  final double totalValue;
+  final String unit;
+  final int multiplier;
+  final double singleValue;
+
+  ScraperParsedQty({
+    required this.totalValue,
+    required this.unit,
+    required this.multiplier,
+    required this.singleValue,
+  });
 }

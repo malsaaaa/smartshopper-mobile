@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 
 void main() async {
   final term = 'cooking oil';
-  final url = 'https://myaeon2go.com/products/search/${Uri.encodeComponent(term)}';
-  print('Fetching search results for "$term" from: $url');
+  final url = 'https://corsproxy.io/?' + Uri.encodeComponent('https://myaeon2go.com/products/search/${Uri.encodeComponent(term)}');
+  print('Fetching search results for "$term" from proxy: $url');
 
   try {
     final response = await http.get(

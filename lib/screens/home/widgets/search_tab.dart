@@ -61,7 +61,16 @@ class SearchTab extends ConsumerStatefulWidget {
 
 class _SearchTabState extends ConsumerState<SearchTab> {
   late TextEditingController _searchController;
+
+  /// Raw user query (drives skeleton display and counter text).
   String _query = '';
+
+  /// Frozen snapshot of search results — captured ONLY after BOTH
+  /// scrapeAllProducts AND scrapeAllRetailers finish.  Passing a static
+  /// list to _SearchResults prevents any Riverpod/Firestore stream rebuild
+  /// from causing post-render flickers.
+  List<Product>? _frozenResults;
+
   String? _selectedCategory;
   String? _selectedBrand;
   bool _isScraping = false;
@@ -84,89 +93,98 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
   void _onSearch(String q) {
     _debounceTimer?.cancel();
-    
+
     if (q.trim().isEmpty) {
       setState(() {
         _query = '';
+        _frozenResults = null;
       });
       return;
     }
-    
+
     setState(() {
       _query = q.trim();
+      _frozenResults = null;  // clear old results — skeleton shows immediately
+      _isScraping = true;
     });
-    
-    // Trigger live scraping immediately (since it's a chip click, no need to debounce)
-    _triggerLiveScrape(q);
+
+    _triggerLiveScrape(q.trim());
   }
 
   Future<void> _triggerLiveScrape(String query) async {
     if (query.trim().isEmpty) return;
-    
-    setState(() {
-      _isScraping = true;
-    });
+
+    // Ensure skeleton is shown before any async work begins.
+    if (mounted) {
+      setState(() {
+        _isScraping = true;
+        _frozenResults = null;
+      });
+    }
 
     try {
       final scraperService = WebScraperService();
-      
-      // 1. Run live scraping locally
-      final results = await scraperService.scrapeAllProducts(category: query.trim());
-      
-      // Group counts for debugging
-      final counts = <int, int>{};
-      for (final pair in results) {
-        final rId = pair.$2.retailerId;
-        counts[rId] = (counts[rId] ?? 0) + 1;
-      }
-      
+
+      // ── Step 1: Fast in-memory scrape (parallel) ─────────────────────────
+      // Collects raw product+price pairs from all retailers concurrently.
+      final inMemoryResults = await scraperService.scrapeAllProducts(category: query);
+
+      // ── Step 2: Full Firestore-backed scrape (sequential, writes DB) ──────
+      // This is the slow step that ends with "✅ Scraping complete: {...}".
+      // We AWAIT it so the skeleton stays up until Firestore is fully settled
+      // and no more stream updates will come in to cause post-render flickers.
+      await scraperService.scrapeAllRetailers(
+        category: query,
+        storeInFirestore: true,
+      );
+
+      // ── Step 3: Persist in-memory results for price comparison ─────────────
       if (mounted) {
-        final mydinCount = counts[1] ?? 0;
-        final aeonCount = counts[2] ?? 0;
-        final lotusCount = counts[3] ?? 0;
+        final products = <Product>[];
+        final prices   = <Price>[];
+        for (final (p, pr) in inMemoryResults) {
+          products.add(p);
+          prices.add(pr);
+        }
+
+        // Atomic write — one Riverpod notification, zero intermediate rebuilds.
+        ref.read(localProductsProvider.notifier).state = [
+          ...ref.read(localProductsProvider),
+          ...products,
+        ];
+        ref.read(localPricesProvider.notifier).state = [
+          ...ref.read(localPricesProvider),
+          ...prices,
+        ];
       }
 
-      // 2. Separate products and prices
-      final localProducts = <Product>[];
-      final localPrices = <Price>[];
-      
-      for (final (product, price) in results) {
-        localProducts.add(product);
-        localPrices.add(price);
+      // ── Step 4: Capture a frozen snapshot of the fully-settled search results
+      // ref.read (not ref.watch) — this is a one-shot read after all writes are
+      // done.  The list is frozen in _frozenResults and never changes again,
+      // so _SearchResults will never re-render from stream updates.
+      if (mounted) {
+        final snapshot = ref.read(productSearchProvider(query));
+        setState(() {
+          _frozenResults = snapshot;
+          _isScraping = false;
+        });
       }
-      
-      // Update local state providers to reactively refresh the comparison list
-      ref.read(localProductsProvider.notifier).state = [
-        ...ref.read(localProductsProvider),
-        ...localProducts,
-      ];
-      ref.read(localPricesProvider.notifier).state = [
-        ...ref.read(localPricesProvider),
-        ...localPrices,
-      ];
-      
-      // 3. Attempt to save in Firestore in background (will succeed if admin, fail silently if regular user)
-      // ignore: unawaited_futures
-      scraperService.scrapeAllRetailers(
-        category: query.trim(),
-        storeInFirestore: true,
-      ).catchError((e) => debugPrint('Firestore write bypassed: $e'));
-      
+
     } catch (e) {
       debugPrint('Error during live search scraping: $e');
       if (mounted) {
+        // Even on error show whatever we have
+        final fallback = ref.read(productSearchProvider(query));
+        setState(() {
+          _frozenResults = fallback;
+          _isScraping = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error during search: $e'),
+            content: Text('Search error: $e'),
             backgroundColor: AppTheme.error,
           ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isScraping = false;
-        });
       }
     }
   }
@@ -174,10 +192,11 @@ class _SearchTabState extends ConsumerState<SearchTab> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(groupedProductsProvider);
-    final searchResults = ref.watch(productSearchProvider(_query));
     final recentSearches = ref.watch(recentSearchesProvider);
     final popularSearches = ref.watch(popularSearchesProvider);
-    
+
+    // We are in search mode if the user has typed something — regardless of
+    // whether scraping is still running or has completed.
     final showingSearch = _query.isNotEmpty;
 
     return productsAsync.when(
@@ -215,18 +234,23 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                 controller: _searchController,
                 onChanged: (val) {
                   _debounceTimer?.cancel();
-                  
+
                   if (val.trim().isEmpty) {
                     setState(() {
                       _query = '';
+                      _frozenResults = null;
+                      _isScraping = false;
                     });
                     return;
                   }
-                  
+
+                  // Update query immediately but do NOT show skeleton yet —
+                  // the user may still be typing. Skeleton appears only when
+                  // _triggerLiveScrape is actually called.
                   setState(() {
                     _query = val.trim();
                   });
-                  
+
                   // Auto trigger live crawling 1.5 seconds after user stops typing
                   _debounceTimer = Timer(const Duration(milliseconds: 1500), () {
                     _triggerLiveScrape(val);
@@ -245,9 +269,11 @@ class _SearchTabState extends ConsumerState<SearchTab> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 child: Text(
-                  showingSearch
-                      ? '${searchResults.length} results for \'$_query\''
-                      : '${allProducts.where((p) => (_selectedCategory != null && p.productType == _selectedCategory) || (_selectedBrand != null && p.category == _selectedBrand)).length} results for \'${_selectedCategory ?? _selectedBrand}\'',
+                  _isScraping
+                      ? 'Searching for \'$_query\'…'
+                      : _frozenResults != null
+                          ? '${_frozenResults!.length} results for \'$_query\''
+                          : '${allProducts.where((p) => (_selectedCategory != null && p.productType == _selectedCategory) || (_selectedBrand != null && p.category == _selectedBrand)).length} results for \'${_selectedCategory ?? _selectedBrand}\'',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppTheme.textSecondary,
                     fontWeight: FontWeight.w500,
@@ -260,10 +286,21 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
             // ── Body ────────────────────────────────────────────────────────
             Expanded(
-              child: _isScraping
-                  ? const _SearchResultsSkeleton()
-                  : showingSearch
-                      ? _SearchResults(results: searchResults, query: _query)
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: child,
+                ),
+                child: _isScraping
+                    ? const _SearchResultsSkeleton()
+                    : _frozenResults != null
+                        // Frozen snapshot — never re-renders from stream updates
+                        ? _SearchResults(
+                            key: ValueKey('results_${_query}_${_frozenResults!.length}'),
+                            results: _frozenResults!,
+                            query: _query,
+                          )
                       : ListView(
                           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                           children: [
@@ -503,6 +540,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                         const SizedBox(height: AppSpacing.xxl),
                       ],
                     ),
+                ),
             ),
           ],
         );
@@ -519,7 +557,7 @@ class _SearchResults extends ConsumerWidget {
   final List<Product> results;
   final String query;
 
-  const _SearchResults({required this.results, required this.query});
+  const _SearchResults({super.key, required this.results, required this.query});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -734,7 +772,7 @@ class _BrandCard extends ConsumerWidget {
 
 // ── Search results skeleton loader ─────────────────────────────────────────────
 class _SearchResultsSkeleton extends StatelessWidget {
-  const _SearchResultsSkeleton();
+  const _SearchResultsSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {

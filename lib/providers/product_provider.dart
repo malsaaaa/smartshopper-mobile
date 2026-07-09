@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/services/firestore_product_service.dart';
+import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 // ============== LOCAL SCAN / SCRAPE STORAGE (IN-MEMORY CACHE) ==============
 
@@ -80,93 +81,176 @@ final enhancedPricesProvider = Provider<AsyncValue<List<Price>>>((ref) {
 
 // ============== COMPUTED PROVIDERS ==============
 
-/// Helper function to create a tokenized match key for deduplication and grouping
+/// Helper function to create a precise, collision-resistant match key for
+/// deduplication and cross-retailer grouping.
+///
+/// Key design rules:
+///   - Brand + product type + **exact** size must all match for grouping.
+///   - Size is extracted with a strict word-boundary regex (avoids "1" matching "18").
+///   - Milo sub-variants (soft pack, fuze, 3-in-1, UHT, etc.) are distinguished.
+///   - Falls back to full-name normalization (no size stripping) so unrecognized
+///     products with different names are never merged.
 String _getProductMatchKey(String name) {
-  final lower = name.toLowerCase();
+  final lower = name.toLowerCase().trim();
 
-  // Helper to extract numeric size/weight (e.g. 1kg, 200ml, 5-pack, 18s) and pack sizes (e.g. 200mlx6)
-  String _extractSize(String text) {
-    // 1. Check for pack multiplier format: e.g. "200mlx6", "200ml x 6", "6x200ml", "6 x 200ml"
-    final packRx1 = RegExp(r'\b([0-9.]+)\s*(kg|g|l|ml)\s*[x*]\s*([0-9]+)\b', caseSensitive: false);
-    final match1 = packRx1.firstMatch(text);
-    if (match1 != null) {
-      return '${match1.group(1)}${match1.group(2)}x${match1.group(3)}'.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+  // ── Size extraction (strict – no false positives) ────────────────────────
+  // Returns a canonical size token like "1kg", "200ml", "5pack", "18s".
+  String extractSize(String text) {
+    // Pack multiplier formats: "6x200ml", "200ml x 6", "6 x 200ml"
+    final packRx1 = RegExp(
+        r'\b([0-9]+(?:\.[0-9]+)?)\s*(kg|g|l|ml)\s*[x×*]\s*([0-9]+)\b',
+        caseSensitive: false);
+    final m1 = packRx1.firstMatch(text);
+    if (m1 != null) {
+      return '${m1.group(1)}${m1.group(2)!.toLowerCase()}x${m1.group(3)}';
     }
-    
-    final packRx2 = RegExp(r'\b([0-9]+)\s*[x*]\s*([0-9.]+)\s*(kg|g|l|ml)\b', caseSensitive: false);
-    final match2 = packRx2.firstMatch(text);
-    if (match2 != null) {
-      return '${match2.group(2)}${match2.group(3)}x${match2.group(1)}'.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    final packRx2 = RegExp(
+        r'\b([0-9]+)\s*[x×*]\s*([0-9]+(?:\.[0-9]+)?)\s*(kg|g|l|ml)\b',
+        caseSensitive: false);
+    final m2 = packRx2.firstMatch(text);
+    if (m2 != null) {
+      return '${m2.group(2)}${m2.group(3)!.toLowerCase()}x${m2.group(1)}';
     }
 
-    // 2. Standard single size format
-    final rx = RegExp(r'\b([0-9.]+)\s*(kg|g|l|ml|s|pack|pcs|tgs)\b', caseSensitive: false);
-    final match = rx.firstMatch(text);
-    if (match != null) {
-      return '${match.group(1)}${match.group(2)}'.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    // Count/serving formats: "18s", "30s", "100s", "25pcs", "5pack"
+    final countRx =
+        RegExp(r'\b([0-9]+)\s*(s|pcs|pack|sachets?|teabags?)\b', caseSensitive: false);
+    final mc = countRx.firstMatch(text);
+    if (mc != null) {
+      return '${mc.group(1)}${mc.group(2)!.toLowerCase().replaceAll(RegExp(r's$'), 's')}';
     }
+
+    // Standard weight/volume: strictly word-boundary anchored
+    final singleRx =
+        RegExp(r'\b([0-9]+(?:\.[0-9]+)?)\s*(kg|g|l|ml)\b', caseSensitive: false);
+    final ms = singleRx.firstMatch(text);
+    if (ms != null) {
+      return '${ms.group(1)}${ms.group(2)!.toLowerCase()}';
+    }
+
     return '';
   }
 
-  // 1. Milo
+  // ── 1. Milo ───────────────────────────────────────────────────────────────
   if (lower.contains('milo')) {
-    final size = _extractSize(lower);
-    String variant = 'powder';
-    if (lower.contains('3in1') || lower.contains('3 in 1')) {
+    final size = extractSize(lower);
+
+    // Determine sub-variant with strict precedence
+    String variant;
+    if (lower.contains('3in1') || lower.contains('3 in 1') ||
+        lower.contains('three in one')) {
       variant = '3in1';
-    } else if (lower.contains('uht') || lower.contains('rtd') || lower.contains('ready') || lower.contains('carton') || lower.contains('box') || lower.contains('drink')) {
-      variant = 'uht';
-    } else if (lower.contains('can')) {
-      variant = 'can';
+    } else if (lower.contains('fuze') || lower.contains('fuse')) {
+      variant = 'fuze';
     } else if (lower.contains('nugget')) {
       variant = 'nuggets';
-    } else if (lower.contains('cereal') || lower.contains('bar')) {
+    } else if (lower.contains('cereal bar') || lower.contains('cereal_bar')) {
+      variant = 'cerealbar';
+    } else if (lower.contains('cereal')) {
       variant = 'cereal';
     } else if (lower.contains('biscuit')) {
       variant = 'biscuit';
+    } else if (lower.contains('chocobar') || lower.contains('choco bar')) {
+      variant = 'chocobar';
+    } else if (lower.contains('ice cream') || lower.contains('ice_cream') ||
+        lower.contains('kaw')) {
+      variant = 'icecream';
+    } else if (lower.contains('uht') ||
+        lower.contains('rtd') ||
+        lower.contains('ready to drink') ||
+        lower.contains('drink') && !lower.contains('powder')) {
+      variant = 'uht';
+    } else if (lower.contains('soft pack') || lower.contains('softpack') ||
+        lower.contains('refill')) {
+      // Soft-pack / refill pouches are a distinct SKU (not regular powder tin)
+      variant = 'softpack';
+    } else {
+      // Default: regular powder (tins / cans)
+      variant = 'powder';
     }
     return 'milo_${variant}_$size';
   }
 
-  // 2. Cooking Oils (Buruh, Knife, Red Eagle, Vesawit, Alif)
-  for (final brand in ['buruh', 'knife', 'red eagle', 'vesawit', 'alif']) {
-    if (lower.contains(brand)) {
-      final size = _extractSize(lower);
-      return '${brand.replaceAll(" ", "")}_oil_$size';
+  // ── 2. Cooking Oils (branded) ─────────────────────────────────────────────
+  final oilBrands = [
+    'buruh', 'knife', 'red eagle', 'vesawit', 'alif',
+    'naturel', 'saji', 'tropical', 'rasaku', 'topvalu',
+  ];
+  for (final brand in oilBrands) {
+    if (lower.contains(brand) && lower.contains('oil')) {
+      final size = extractSize(lower);
+      final brandKey = brand.replaceAll(' ', '');
+      return '${brandKey}_oil_$size';
     }
   }
+  // Generic cooking oil (no recognised brand)
+  if (lower.contains('cooking oil')) {
+    final size = extractSize(lower);
+    return 'cookingoil_$size';
+  }
 
-  // 3. Maggi
+  // ── 3. Maggi ──────────────────────────────────────────────────────────────
   if (lower.contains('maggi')) {
-    final size = _extractSize(lower);
-    String flavour = 'curry';
+    final size = extractSize(lower);
+    String flavour;
     if (lower.contains('asam laksa') || lower.contains('laksa')) {
       flavour = 'laksa';
-    } else if (lower.contains('chicken') || lower.contains('ayam')) {
-      flavour = 'chicken';
     } else if (lower.contains('tomyam') || lower.contains('tom yam')) {
       flavour = 'tomyam';
+    } else if (lower.contains('chicken') || lower.contains('ayam')) {
+      flavour = 'chicken';
+    } else if (lower.contains('kari') || lower.contains('curry')) {
+      flavour = 'curry';
+    } else if (lower.contains('anchovies') || lower.contains('ikan bilis')) {
+      flavour = 'anchovies';
+    } else if (lower.contains('sambal')) {
+      flavour = 'sambal';
+    } else if (lower.contains('cube') || lower.contains('stock')) {
+      flavour = 'stock';
+    } else {
+      flavour = 'other';
     }
     return 'maggi_${flavour}_$size';
   }
 
-  // 4. Boh Tea
+  // ── 4. Boh Tea ────────────────────────────────────────────────────────────
   if (lower.contains('boh')) {
-    final size = _extractSize(lower);
-    return 'boh_tea_$size';
+    final size = extractSize(lower);
+    String type = 'regular';
+    if (lower.contains('green')) type = 'green';
+    else if (lower.contains('earl grey')) type = 'earlgrey';
+    else if (lower.contains('chamomile')) type = 'chamomile';
+    return 'boh_${type}_$size';
   }
 
-  // 5. Rice (Jati, Sunflower, Seri Murni)
-  for (final brand in ['jati', 'sunflower', 'seri murni']) {
-    if (lower.contains(brand)) {
-      final size = _extractSize(lower);
-      return '${brand.replaceAll(" ", "")}_rice_$size';
+  // ── 5. Rice (branded) ─────────────────────────────────────────────────────
+  final riceBrands = ['jati', 'sunflower', 'seri murni', 'faiza', 'royal gold'];
+  for (final brand in riceBrands) {
+    if (lower.contains(brand) && lower.contains('rice')) {
+      final size = extractSize(lower);
+      return '${brand.replaceAll(' ', '')}_rice_$size';
     }
   }
 
-  // Fallback: lowercase and strip punctuation/spaces
-  return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
+  // ── 6. Aik Cheong / Nescafé / generic coffee-tea ─────────────────────────
+  if (lower.contains('aik cheong') || lower.contains('aik_cheong')) {
+    final size = extractSize(lower);
+    return 'aikcheong_${size}';
+  }
+  if (lower.contains('nescafe') || lower.contains('nescafé')) {
+    final size = extractSize(lower);
+    return 'nescafe_${size}';
+  }
+
+  // ── Fallback: preserve full normalized name (size included) ───────────────
+  // Strip punctuation but keep spaces so different-size products stay separate.
+  final normalized = lower
+      .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+      .replaceAll(RegExp(r'\s+'), '_')
+      .trim();
+  return normalized;
 }
+
 
 /// Deduplicated list of products by name (computed)
 final groupedProductsProvider = Provider<AsyncValue<List<Product>>>((ref) {

@@ -1234,6 +1234,7 @@ window.renderNotifications = renderNotifications;
 window.changeRole = changeRole;
 window.deleteUser = deleteUser;
 window.clearDatabase = clearDatabase;
+window.deduplicateDatabase = deduplicateDatabase;
 
 function toggleDarkMode() { document.body.classList.toggle('dark'); }
 
@@ -1286,6 +1287,199 @@ async function clearDatabase() {
   } catch (e) {
     console.error(e);
     showToast('❌ Error clearing database: ' + e.message);
+  }
+}
+
+function extractBrandJS(name) {
+  const lower = name.toLowerCase();
+  const brands = [
+    'nestle', 'milo', 'buruh', 'faiza', 'knife', 'vesawit', 'naturel', 'csr', 
+    'red eagle', 'sumo', 'boh', 'jati', 'aik cheong', 'maggi', 'oyoshi', 'sunlight', 'sunflower'
+  ];
+  for (const b of brands) {
+    if (lower.includes(b)) return b.toUpperCase();
+  }
+  return 'OTHER';
+}
+
+function parseQuantityJS(name) {
+  const lower = name.toLowerCase();
+  
+  // 1. Check for multipack formats: e.g., "4 x 80g", "4x23.5g", "12 x 1l", "26 x 33g"
+  const multipackRegex = /(\d+)\s*(?:x|pcs|packets|teabags|bags|sticks|s|packets\s*x)\s*(\d+(?:\.\d+)?)\s*(kg|g|l|ml|s)\b/i;
+  const multiMatch = lower.match(multipackRegex);
+  if (multiMatch) {
+    const mult = parseInt(multiMatch[1], 10) || 1;
+    const value = parseFloat(multiMatch[2]) || 0.0;
+    const rawUnit = multiMatch[3];
+    
+    let normUnit = 'g';
+    let multiplierValue = 1.0;
+    if (rawUnit === 'kg') { normUnit = 'g'; multiplierValue = 1000.0; }
+    else if (rawUnit === 'g') { normUnit = 'g'; multiplierValue = 1.0; }
+    else if (rawUnit === 'l') { normUnit = 'ml'; multiplierValue = 1000.0; }
+    else if (rawUnit === 'ml') { normUnit = 'ml'; multiplierValue = 1.0; }
+    else if (rawUnit === 's') { normUnit = 's'; multiplierValue = 1.0; }
+    
+    return {
+      totalValue: value * multiplierValue * mult,
+      unit: normUnit,
+      multiplier: mult,
+      singleValue: value * multiplierValue
+    };
+  }
+  
+  // 2. Check for single weight/volume values: e.g. "5kg", "500g", "1l", "1.5l"
+  const singleRegex = /(\d+(?:\.\d+)?)\s*(kg|g|l|ml|s)\b/i;
+  const singleMatch = lower.match(singleRegex);
+  if (singleMatch) {
+    const value = parseFloat(singleMatch[1]) || 0.0;
+    const rawUnit = singleMatch[2];
+    
+    let normUnit = 'g';
+    let multiplierValue = 1.0;
+    if (rawUnit === 'kg') { normUnit = 'g'; multiplierValue = 1000.0; }
+    else if (rawUnit === 'g') { normUnit = 'g'; multiplierValue = 1.0; }
+    else if (rawUnit === 'l') { normUnit = 'ml'; multiplierValue = 1000.0; }
+    else if (rawUnit === 'ml') { normUnit = 'ml'; multiplierValue = 1.0; }
+    else if (rawUnit === 's') { normUnit = 's'; multiplierValue = 1.0; }
+    
+    return {
+      totalValue: value * multiplierValue,
+      unit: normUnit,
+      multiplier: 1,
+      singleValue: value * multiplierValue
+    };
+  }
+  
+  return null;
+}
+
+async function deduplicateDatabase() {
+  if (!confirm('Run AI Deduplication on products? This will merge duplicate products across retailers and update price links.')) return;
+  
+  showToast('🧠 Scanning database and calculating similarities...');
+  
+  try {
+    const productsSnapshot = await db.collection('products').get();
+    const pricesSnapshot = await db.collection('prices').get();
+    
+    const localProducts = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const localPrices = pricesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    if (localProducts.length === 0) {
+      showToast('❌ No products found in database to deduplicate.');
+      return;
+    }
+
+    const stopWords = new Set([
+      'pack', 'packets', 'pouch', 'bag', 'bags', 'sticks', 'pcs', 'rtd', 
+      'ready', 'to', 'drink', 'in', 'original', 'value', 'super', 'mega', 'mp'
+    ]);
+    
+    const uniqueProducts = [];
+    const idMapping = {}; // Duplicate ID -> Unique ID
+    const productsToDelete = [];
+    
+    for (const p of localProducts) {
+      const brand = extractBrandJS(p.name);
+      const pQty = parseQuantityJS(p.name);
+      
+      let matchedId = null;
+      for (const existing of uniqueProducts) {
+        // 1. Category check
+        if (existing.productType !== p.productType) continue;
+        
+        // 2. Brand check
+        const existingBrand = extractBrandJS(existing.name);
+        if (existingBrand !== brand) continue;
+        
+        // 3. Mathematical Quantity/Multipack safety check
+        const existingQty = parseQuantityJS(existing.name);
+        if (pQty && existingQty) {
+          if (pQty.unit !== existingQty.unit) continue;
+          if (pQty.multiplier !== existingQty.multiplier) continue;
+          if (Math.abs(pQty.singleValue - existingQty.singleValue) > 0.01) continue;
+        } else if ((pQty === null && existingQty !== null) || (pQty !== null && existingQty === null)) {
+          // One is sized, the other is not. Do not match.
+          continue;
+        }
+        
+        // 4. Jaccard similarity of word tokens (excluding stopwords)
+        const tokens1 = new Set(p.name.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(w => w.length > 1 && !stopWords.has(w)));
+        const tokens2 = new Set(existing.name.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(w => w.length > 1 && !stopWords.has(w)));
+        
+        if (tokens1.size === 0 || tokens2.size === 0) continue;
+        
+        let intersectionSize = 0;
+        for (const t of tokens1) {
+          if (tokens2.has(t)) intersectionSize++;
+        }
+        const unionSize = new Set([...tokens1, ...tokens2]).size;
+        const score = intersectionSize / unionSize;
+        
+        if (score >= 0.55) {
+          matchedId = existing.id;
+          break;
+        }
+      }
+      
+      if (matchedId !== null) {
+        idMapping[p.id] = matchedId;
+        productsToDelete.push(p.id);
+      } else {
+        uniqueProducts.push(p);
+      }
+    }
+    
+    if (productsToDelete.length === 0) {
+      showToast('✅ All products are already cleanly resolved and mapped!');
+      return;
+    }
+    
+    showToast(`Remapping ${localPrices.length} price records and deleting ${productsToDelete.length} duplicates...`);
+    
+    let batch = db.batch();
+    let writeCount = 0;
+    
+    // Remap price records in batches (Firestore batch limit is 500 writes)
+    for (const price of localPrices) {
+      if (price.productId && idMapping[price.productId]) {
+        const newProductId = idMapping[price.productId];
+        const priceDocRef = db.collection('prices').doc(price.id);
+        
+        batch.update(priceDocRef, { productId: newProductId });
+        writeCount++;
+        
+        if (writeCount >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          writeCount = 0;
+        }
+      }
+    }
+    
+    // Delete duplicate products
+    for (const dupId of productsToDelete) {
+      const prodDocRef = db.collection('products').doc(dupId.toString());
+      batch.delete(prodDocRef);
+      writeCount++;
+      
+      if (writeCount >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        writeCount = 0;
+      }
+    }
+    
+    if (writeCount > 0) {
+      await batch.commit();
+    }
+    
+    showToast(`🎉 AI Deduplicated! Resolved ${productsToDelete.length} duplicates successfully.`);
+  } catch (error) {
+    console.error(error);
+    showToast('❌ Error running deduplication: ' + error.message);
   }
 }
 
@@ -1620,6 +1814,7 @@ window.saveEditRetailer = saveEditRetailer;
 window.deleteRetailer = deleteRetailer;
 window.toggleAdmin = toggleAdmin;
 window.clearDatabase = clearDatabase;
+window.deduplicateDatabase = deduplicateDatabase;
 window.toggleDarkMode = toggleDarkMode;
 window.toggleCompact = toggleCompact;
 window.showToast = showToast;
