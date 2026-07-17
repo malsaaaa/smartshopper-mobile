@@ -349,8 +349,9 @@ class BudgetTab extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.md),
                     Text('Quick Presets', style: AppTypography.bodySmall),
                     const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
                       children: [200, 500, 1000, 1500].map((preset) {
                         final isSelected = limitVal.round() == preset;
                         return ChoiceChip(

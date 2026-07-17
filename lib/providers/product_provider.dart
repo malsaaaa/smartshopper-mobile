@@ -27,6 +27,17 @@ final productsStreamProvider = StreamProvider<List<Product>>((ref) {
   return service.getProductsStream();
 });
 
+/// Map of product ID to product for O(1) lookup
+final productsMapProvider = Provider<AsyncValue<Map<int, Product>>>((ref) {
+  final productsAsync = ref.watch(productsStreamProvider);
+  final localProducts = ref.watch(localProductsProvider);
+  
+  return productsAsync.whenData((products) {
+    final allProducts = [...products, ...localProducts];
+    return {for (final p in allProducts) p.id: p};
+  });
+});
+
 /// Stream of all retailers
 final retailersStreamProvider = StreamProvider<List<Retailer>>((ref) {
   final service = ref.watch(firestoreProductServiceProvider);
@@ -55,15 +66,12 @@ final enhancedPricesProvider = Provider<AsyncValue<List<Price>>>((ref) {
           final allPrices = [...prices, ...localPrices];
           final allProducts = [...products, ...localProducts];
 
+          final productMap = {for (final p in allProducts) p.id: p};
+          final retailerMap = {for (final r in retailers) r.id: r};
+
           final joined = allPrices.map((price) {
-            final product = allProducts.cast<Product?>().firstWhere(
-                  (p) => p?.id == price.productId,
-                  orElse: () => null,
-                );
-            final retailer = retailers.cast<Retailer?>().firstWhere(
-                  (r) => r?.id == price.retailerId,
-                  orElse: () => null,
-                );
+            final product = productMap[price.productId];
+            final retailer = retailerMap[price.retailerId];
             return price.copyWith(product: product, retailer: retailer);
           }).toList();
           return AsyncValue.data(joined);
@@ -273,15 +281,58 @@ final groupedProductsProvider = Provider<AsyncValue<List<Product>>>((ref) {
 /// Search products by query (computed from deduplicated list)
 final productSearchProvider = Provider.family<List<Product>, String>((ref, query) {
   final groupedProductsAsync = ref.watch(groupedProductsProvider);
+  final allPricesAsync = ref.watch(enhancedPricesProvider);
+  final productsAsync = ref.watch(productsStreamProvider);
+  final localProducts = ref.watch(localProductsProvider);
+
   return groupedProductsAsync.when(
     data: (products) {
       if (query.isEmpty) return products;
+      
       final queryWords = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-      return products.where((p) {
+      final filtered = products.where((p) {
         final name = p.name.toLowerCase();
         final desc = p.description.toLowerCase();
         return queryWords.every((word) => name.contains(word) || desc.contains(word));
       }).toList();
+
+      final allPrices = allPricesAsync.valueOrNull ?? [];
+      final rawProducts = productsAsync.valueOrNull ?? [];
+      final allProducts = [...rawProducts, ...localProducts];
+
+      // Build productId to matchKey lookup for O(1) access
+      final prodIdToMatchKey = <int, String>{};
+      for (final prod in allProducts) {
+        prodIdToMatchKey[prod.id] = _getProductMatchKey(prod.name);
+      }
+
+      // Map match keys to their set of unique retailer IDs
+      final matchKeyToRetailers = <String, Set<int>>{};
+      for (final price in allPrices) {
+        final matchKey = prodIdToMatchKey[price.productId];
+        if (matchKey != null) {
+          (matchKeyToRetailers[matchKey] ??= {}).add(price.retailerId);
+        }
+      }
+
+      // Pre-calculate unique retailer counts for each filtered product
+      final retailerCounts = <String, int>{};
+      for (final p in filtered) {
+        final targetKey = _getProductMatchKey(p.name);
+        retailerCounts[targetKey] = matchKeyToRetailers[targetKey]?.length ?? 0;
+      }
+
+      // Sort: higher retailer count first, fallback to alphabetical name
+      filtered.sort((a, b) {
+        final countA = retailerCounts[_getProductMatchKey(a.name)] ?? 0;
+        final countB = retailerCounts[_getProductMatchKey(b.name)] ?? 0;
+        if (countA != countB) {
+          return countB.compareTo(countA); // Descending order
+        }
+        return a.name.compareTo(b.name);
+      });
+
+      return filtered;
     },
     loading: () => [],
     error: (_, __) => [],
@@ -290,17 +341,9 @@ final productSearchProvider = Provider.family<List<Product>, String>((ref, query
 
 /// Product by ID (computed)
 final productByIdProvider = Provider.family<Product?, int>((ref, productId) {
-  final productsAsync = ref.watch(productsStreamProvider);
-  final localProducts = ref.watch(localProductsProvider);
-  
-  return productsAsync.when(
-    data: (products) {
-      final allProducts = [...products, ...localProducts];
-      return allProducts.cast<Product?>().firstWhere(
-        (p) => p?.id == productId, 
-        orElse: () => null
-      );
-    },
+  final mapAsync = ref.watch(productsMapProvider);
+  return mapAsync.when(
+    data: (map) => map[productId],
     loading: () => null,
     error: (_, __) => null,
   );
@@ -309,20 +352,15 @@ final productByIdProvider = Provider.family<Product?, int>((ref, productId) {
 /// Prices for specific product (computed with joined data from all matching products by name)
 final pricesForProductProvider = Provider.family<List<Price>, int>((ref, productId) {
   final enhancedPricesAsync = ref.watch(enhancedPricesProvider);
-  final productsAsync = ref.watch(productsStreamProvider);
-  final localProducts = ref.watch(localProductsProvider);
+  final mapAsync = ref.watch(productsMapProvider);
   
-  return productsAsync.when(
-    data: (products) {
-      final allProducts = [...products, ...localProducts];
-      final targetProduct = allProducts.cast<Product?>().firstWhere(
-        (p) => p?.id == productId,
-        orElse: () => null,
-      );
+  return mapAsync.when(
+    data: (map) {
+      final targetProduct = map[productId];
       if (targetProduct == null) return [];
       
       final targetKey = _getProductMatchKey(targetProduct.name);
-      final sameNameProductIds = allProducts
+      final sameNameProductIds = map.values
           .where((p) => _getProductMatchKey(p.name) == targetKey)
           .map((p) => p.id)
           .toSet();

@@ -4,6 +4,8 @@ import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';
+import 'package:smartshopper_mobile/providers/firestore_budget_provider.dart';
+import 'package:smartshopper_mobile/services/ai_recommendation_service.dart';
 import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 // ─── Data classes ────────────────────────────────────────────────────────────
@@ -41,12 +43,20 @@ class SmartRecommendations extends ConsumerStatefulWidget {
       _SmartRecommendationsState();
 }
 
-// Use the shared getProductMatchKey from product_utils.dart for consistent grouping.
-// (Delegates to getProductMatchKey which handles brand + variant + exact size.)
-String _getProductMatchKey(String name) => getProductMatchKey(name);
-
+// Normalize product name for matching (removes spaces, casing, and special chars)
+String _getProductMatchKey(String name) {
+  return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+}
 class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
   String? _selectedRetailer; // Selected retailer for visual breakdown
+
+  /// Track the cart item IDs that produced the last AI tip so we only re-call
+  /// when the cart actually changes.
+  String _lastAiCartKey = '';
+
+  /// Alternative brand suggestions — populated after cart data is ready.
+  List<AiBrandSwap>? _brandSwaps;
+  bool _brandSwapsLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -150,11 +160,47 @@ class _SmartRecommendationsState extends ConsumerState<SmartRecommendations> {
             final selectedSummary =
                 summaries[_selectedRetailer] ?? summaries[best.name]!;
 
+            // ── Build AI context from analyses ──────────────────────────────
+            final aiCartKey = items.map((i) => '${i.productId}:${i.quantity}').join(',');
+            if (aiCartKey != _lastAiCartKey && !_brandSwapsLoading) {
+              _lastAiCartKey = aiCartKey;
+
+              final aiItems = analyses.map((a) => AiCartItem(
+                productName: a.cartItem.name,
+                quantity: a.cartItem.quantity,
+                prices: a.priceByRetailer.entries
+                    .map((e) => AiPriceEntry(e.key, e.value))
+                    .toList(),
+              )).toList();
+
+              // Call AI asynchronously — does not block the UI
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _brandSwapsLoading = true;
+                  });
+
+                  // Fetch alternative brand swaps suggestions
+                  AiRecommendationService.getAlternativeBrandSuggestions(
+                    items: aiItems,
+                  ).then((swaps) {
+                    if (mounted) {
+                      setState(() {
+                        _brandSwaps = swaps;
+                        _brandSwapsLoading = false;
+                      });
+                    }
+                  });
+                }
+              });
+            }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: AppSpacing.xxl),
-                // ── Header ───────────────────────────────────────────────────────
+                _SmartBrandSwapsCard(swaps: _brandSwaps, isLoading: _brandSwapsLoading),
+                // ── Header ─────────────────────────────────────────────────────────
                 Row(children: [
                   const Text('💰', style: TextStyle(fontSize: 22)),
                   const SizedBox(width: AppSpacing.sm),
@@ -938,6 +984,214 @@ class _TableRow extends StatelessWidget {
                         ),
                       ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+// ── AI Alternative Brand Swaps Card ────────────────────────────────────────────
+class _SmartBrandSwapsCard extends StatelessWidget {
+  final List<AiBrandSwap>? swaps;
+  final bool isLoading;
+  const _SmartBrandSwapsCard({required this.swaps, required this.isLoading});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isLoading && (swaps == null || swaps!.isEmpty)) return const SizedBox.shrink();
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: isLoading ? _buildLoading() : _buildSwapsList(context),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Container(
+      key: const ValueKey('ai-swaps-loading'),
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0F766E).withValues(alpha: 0.08), // teal shades
+            const Color(0xFF0D9488).withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F766E)),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const Expanded(
+            child: Text(
+              'Checking for cheaper brand alternatives…',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF0F766E),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwapsList(BuildContext context) {
+    return Container(
+      key: const ValueKey('ai-swaps-list'),
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0F766E).withValues(alpha: 0.07),
+            const Color(0xFF0D9488).withValues(alpha: 0.03),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: const Color(0xFF0D9488).withValues(alpha: 0.22),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lightbulb_rounded, size: 15, color: Color(0xFF0D9488)),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const Text(
+                'Smart Brand Swaps',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F766E),
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Gemini AI',
+                  style: TextStyle(fontSize: 8, color: Color(0xFF0D9488), fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Swaps list
+          ...swaps!.map((swap) => Padding(
+            padding: const EdgeInsets.only(bottom: 10.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Swap flow row
+                Row(
+                  children: [
+                    // Original item badge
+                    Expanded(
+                      flex: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.divider.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          swap.originalItem,
+                          style: AppTypography.bodySmall.copyWith(
+                            decoration: TextDecoration.lineThrough,
+                            color: AppTheme.textTertiary,
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4.0),
+                      child: Icon(Icons.arrow_right_alt_rounded, size: 16, color: Color(0xFF0D9488)),
+                    ),
+                    // Suggested item badge
+                    Expanded(
+                      flex: 5,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          swap.suggestedAlternative,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: const Color(0xFF0F766E),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                // Savings Reason text
+                Padding(
+                  padding: const EdgeInsets.only(left: 4.0),
+                  child: Text(
+                    swap.savingsReason,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: AppTheme.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                if (swap != swaps!.last)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8.0),
+                    child: Divider(height: 1, thickness: 0.5, color: Colors.black12),
+                  ),
+              ],
+            ),
+          )),
         ],
       ),
     );

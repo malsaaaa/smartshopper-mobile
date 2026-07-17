@@ -11,6 +11,9 @@ import 'package:smartshopper_mobile/utils/product_utils.dart';
 class WebScraperService {
   // Firestore instance
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // In-memory catalog cache to reduce Firestore reads
+  static List<Product>? _cachedCatalog;
   
   // Registry of active scrapers by normalized key
   late final Map<String, BaseScraper> _scrapers = {
@@ -39,12 +42,11 @@ class WebScraperService {
   }) async {
     final results = <String, int>{};
 
-    print('🔍 Starting scrape of all retailers...');
+    print('🔍 Starting parallel scrape of all retailers...');
 
-    for (final entry in _scrapers.entries) {
+    final tasks = _scrapers.entries.map((entry) async {
       final retailerName = entry.key;
       final scraper = entry.value;
-
       try {
         final count = await _scrapeRetailer(
           retailerName,
@@ -53,12 +55,15 @@ class WebScraperService {
           pageNumber: pageNumber,
           category: category,
         );
-        results[retailerName] = count;
+        return MapEntry(retailerName, count);
       } catch (e) {
         print('❌ Error scraping $retailerName: $e');
-        results[retailerName] = 0;
+        return MapEntry(retailerName, 0);
       }
-    }
+    });
+
+    final list = await Future.wait(tasks);
+    results.addEntries(list);
 
     print('✅ Scraping complete: $results');
     return results;
@@ -115,8 +120,13 @@ class WebScraperService {
     // 1. Fetch current catalog for live in-memory entity resolution
     List<Product> existingProducts = [];
     try {
-      final snapshot = await _db.collection('products').get();
-      existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
+      if (_cachedCatalog != null) {
+        existingProducts = List.from(_cachedCatalog!);
+      } else {
+        final snapshot = await _db.collection('products').get();
+        existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
+        _cachedCatalog = List.from(existingProducts);
+      }
     } catch (_) {}
 
     final tasks = _scrapers.entries.map((entry) async {
@@ -403,7 +413,7 @@ class WebScraperService {
 
     // Reuse ID if matches meet the required similarity threshold
     if (bestMatch != null) {
-      print('🤖 Entity Resolution: Merged "$name" with existing "${bestMatch.name}" (Similarity: ${(bestScore*100).toStringAsFixed(0)}%)');
+        print('🤖 Entity Resolution: Merged "$name" with existing "${bestMatch.name}" (Similarity: ${(bestScore*100).toStringAsFixed(0)}%)');
       return bestMatch.id;
     }
 
@@ -416,9 +426,14 @@ class WebScraperService {
     // 1. Fetch current catalog for entity matching
     List<Product> existingProducts = [];
     try {
-      final snapshot = await _db.collection('products').get();
-      existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
-      print('🤖 Loaded ${existingProducts.length} existing products for similarity deduplication.');
+      if (_cachedCatalog != null) {
+        existingProducts = List.from(_cachedCatalog!);
+      } else {
+        final snapshot = await _db.collection('products').get();
+        existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
+        _cachedCatalog = List.from(existingProducts);
+      }
+      print('🤖 Loaded ${existingProducts.length} existing products for similarity deduplication (cached: ${_cachedCatalog != null}).');
     } catch (e) {
       print('⚠️ Failed to pre-load catalog. Scraping will default to exact string hashes: $e');
     }
@@ -441,7 +456,7 @@ class WebScraperService {
 
           // Add this to our local listing for batch matching (so items in the same scraping job merge)
           if (!existingProducts.any((p) => p.id == stableProductId)) {
-            existingProducts.add(Product(
+            final newProd = Product(
               id: stableProductId,
               name: product.name,
               description: product.description,
@@ -450,7 +465,11 @@ class WebScraperService {
               productType: product.productType,
               createdAt: DateTime.now(),
               updatedAt: DateTime.now(),
-            ));
+            );
+            existingProducts.add(newProd);
+            if (_cachedCatalog != null && !_cachedCatalog!.any((p) => p.id == stableProductId)) {
+              _cachedCatalog!.add(newProd);
+            }
           }
 
           final productDoc = _db.collection('products').doc(stableProductId.toString());
@@ -537,9 +556,24 @@ class WebScraperService {
       // Fetch product models from database
       final products = <Product>[];
       for (final productId in productIds) {
-        final productDoc = await _db.collection('products').doc(productId).get();
-        if (productDoc.exists) {
-          products.add(Product.fromFirestore(productDoc.data()!, productDoc.id));
+        Product? cached;
+        if (_cachedCatalog != null) {
+          cached = _cachedCatalog!.cast<Product?>().firstWhere(
+                (p) => p?.id.toString() == productId.toString(),
+                orElse: () => null,
+              );
+        }
+        if (cached != null) {
+          products.add(cached);
+        } else {
+          final productDoc = await _db.collection('products').doc(productId).get();
+          if (productDoc.exists) {
+            final p = Product.fromFirestore(productDoc.data()!, productDoc.id);
+            products.add(p);
+            if (_cachedCatalog != null) {
+              _cachedCatalog!.add(p);
+            }
+          }
         }
       }
 
@@ -573,6 +607,7 @@ class WebScraperService {
   Future<void> clearScrapedData() async {
     try {
       print('⚠️ Clearing all scraped data...');
+      _cachedCatalog = null;
       
       final batch = _db.batch();
       

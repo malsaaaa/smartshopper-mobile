@@ -27,6 +27,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   String _sortBy = 'price'; // 'price' or 'retailer'
   bool _ascending = true;
   Position? _userPosition;
+  String? _userCity;
   final Map<int, Map<String, double>> _autoCoords = {};
 
   @override
@@ -55,30 +56,38 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       });
       // Update global location provider with resolved position
       ref.read(userLocationProvider.notifier).state = pos;
+
+      // Geocode coordinate to get the human readable city/town name
+      LocationService.getCityName(pos.latitude, pos.longitude).then((city) {
+        if (mounted) {
+          setState(() {
+            _userCity = city;
+          });
+        }
+      });
     }
   }
 
+
   Future<void> _findMissingCoords(List<Price> prices) async {
+    // Wait until the user's position is resolved to avoid un-biased queries.
+    if (_userPosition == null) return;
+
     for (var price in prices) {
       final r = price.retailer;
-      if (r != null && (r.latitude == null || r.latitude == 0.0) && !_autoCoords.containsKey(r.id)) {
-        // Automatically search for store location nearest to the user
+      if (r != null && !_autoCoords.containsKey(r.id)) {
+        // Always search for the physical store location nearest to the user's actual position
         final coords = await LocationService.getStoreCoordinates(
           r.name,
-          userLat: _userPosition?.latitude,
-          userLon: _userPosition?.longitude,
+          userLat: _userPosition!.latitude,
+          userLon: _userPosition!.longitude,
         );
         if (coords != null && mounted) {
           setState(() {
             _autoCoords[r.id] = coords;
           });
-
-          // Save to Firestore automatically for everyone else!
-          ref.read(firestoreProductServiceProvider).updateRetailerLocation(
-                r.id,
-                coords['latitude']!,
-                coords['longitude']!,
-              );
+          // Note: We do NOT update Firestore globally, as it would override the coordinates 
+          // for everyone else with coordinates specific to this user's current location!
         }
       }
     }
@@ -438,7 +447,27 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Current Location Info Banner
+          if (_userCity != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Row(
+                children: [
+                  const Icon(Icons.my_location_rounded, size: 14, color: AppTheme.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Current Location: $_userCity',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // 1. In-stock Retailers
           ...prices.asMap().entries.map((entry) {
             final index = entry.key;
@@ -446,20 +475,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             final isBestPrice = index == 0 && _sortBy == 'price';
             final savings = maxPrice - price.price;
 
-            // Handle auto-discovered coordinates
+            // Handle auto-discovered coordinates (prefer local autoCoords for user location accuracy)
             var r = price.retailer;
-            if (r != null && (r.latitude == null || r.latitude == 0.0) && _autoCoords.containsKey(r.id)) {
-              final coords = _autoCoords[r.id]!;
-              r = Retailer(
-                id: r.id,
-                name: r.name,
-                logoUrl: r.logoUrl,
-                website: r.website,
-                latitude: coords['latitude'],
-                longitude: coords['longitude'],
-                createdAt: r.createdAt,
-                updatedAt: r.updatedAt,
-              );
+            if (r != null) {
+              final coords = _autoCoords[r.id] ?? (r.latitude != null && r.latitude != 0.0 ? {'latitude': r.latitude!, 'longitude': r.longitude!} : null);
+              if (coords != null) {
+                r = Retailer(
+                  id: r.id,
+                  name: r.name,
+                  logoUrl: r.logoUrl,
+                  website: r.website,
+                  latitude: coords['latitude'],
+                  longitude: coords['longitude'],
+                  createdAt: r.createdAt,
+                  updatedAt: r.updatedAt,
+                );
+              }
             }
 
             final distance = r != null 
@@ -495,8 +526,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           ...missingRetailers.map((r) {
             // Apply auto coords if available
             var resolvedRetailer = r;
-            if ((r.latitude == null || r.latitude == 0.0) && _autoCoords.containsKey(r.id)) {
-              final coords = _autoCoords[r.id]!;
+            final coords = _autoCoords[r.id] ?? (r.latitude != null && r.latitude != 0.0 ? {'latitude': r.latitude!, 'longitude': r.longitude!} : null);
+            if (coords != null) {
               resolvedRetailer = Retailer(
                 id: r.id,
                 name: r.name,

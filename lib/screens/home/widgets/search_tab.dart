@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
+import 'package:smartshopper_mobile/services/ai_recommendation_service.dart';
 import 'package:smartshopper_mobile/widgets/add_to_list_sheet.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
 import 'package:smartshopper_mobile/services/web_scraper_service.dart';
@@ -66,10 +67,13 @@ class _SearchTabState extends ConsumerState<SearchTab> {
   String _query = '';
 
   /// Frozen snapshot of search results — captured ONLY after BOTH
-  /// scrapeAllProducts AND scrapeAllRetailers finish.  Passing a static
-  /// list to _SearchResults prevents any Riverpod/Firestore stream rebuild
-  /// from causing post-render flickers.
+  /// scrapeAllProducts AND scrapeAllRetailers finish.
   List<Product>? _frozenResults;
+
+
+  /// AI-generated recipe bundle suggestion.
+  AiRecipeBundle? _recipeBundle;
+  bool _recipeBundleLoading = false;
 
   String? _selectedCategory;
   String? _selectedBrand;
@@ -98,6 +102,8 @@ class _SearchTabState extends ConsumerState<SearchTab> {
       setState(() {
         _query = '';
         _frozenResults = null;
+        _recipeBundle = null;
+        _recipeBundleLoading = false;
       });
       return;
     }
@@ -105,6 +111,8 @@ class _SearchTabState extends ConsumerState<SearchTab> {
     setState(() {
       _query = q.trim();
       _frozenResults = null;  // clear old results — skeleton shows immediately
+      _recipeBundle = null;
+      _recipeBundleLoading = false;
       _isScraping = true;
     });
 
@@ -158,15 +166,25 @@ class _SearchTabState extends ConsumerState<SearchTab> {
         ];
       }
 
-      // ── Step 4: Capture a frozen snapshot of the fully-settled search results
-      // ref.read (not ref.watch) — this is a one-shot read after all writes are
-      // done.  The list is frozen in _frozenResults and never changes again,
-      // so _SearchResults will never re-render from stream updates.
+      // ── Step 4: Capture frozen snapshot & kick off AI in parallel ──────────
       if (mounted) {
         final snapshot = ref.read(productSearchProvider(query));
         setState(() {
           _frozenResults = snapshot;
           _isScraping = false;
+          _recipeBundleLoading = true;
+        });
+
+        // Call Recipe Suggestions
+        AiRecommendationService.getRecipeBundle(
+          query: query,
+        ).then((bundle) {
+          if (mounted) {
+            setState(() {
+              _recipeBundle = bundle;
+              _recipeBundleLoading = false;
+            });
+          }
         });
       }
 
@@ -257,6 +275,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                   });
                 },
                 onSubmitted: (q) {
+                  _debounceTimer?.cancel();
                   ref.read(recentSearchesProvider.notifier).addSearch(q);
                   _triggerLiveScrape(q);
                 },
@@ -296,10 +315,27 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                     ? const _SearchResultsSkeleton()
                     : _frozenResults != null
                         // Frozen snapshot — never re-renders from stream updates
-                        ? _SearchResults(
+                        ? Column(
                             key: ValueKey('results_${_query}_${_frozenResults!.length}'),
-                            results: _frozenResults!,
-                            query: _query,
+                            children: [
+
+                              // AI Recipe Suggestions Card
+                              _AiRecipeBundleCard(
+                                bundle: _recipeBundle,
+                                isLoading: _recipeBundleLoading,
+                                onIngredientTap: (ingredient) {
+                                  _searchController.text = ingredient;
+                                  _onSearch(ingredient);
+                                },
+                              ),
+
+                              Expanded(
+                                child: _SearchResults(
+                                  results: _frozenResults!,
+                                  query: _query,
+                                ),
+                              ),
+                            ],
                           )
                       : ListView(
                           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -770,6 +806,8 @@ class _BrandCard extends ConsumerWidget {
   }
 }
 
+
+
 // ── Search results skeleton loader ─────────────────────────────────────────────
 class _SearchResultsSkeleton extends StatelessWidget {
   const _SearchResultsSkeleton({super.key});
@@ -817,5 +855,184 @@ class _SearchResultsSkeleton extends StatelessWidget {
     );
   }
 }
+
+
+// ── AI Recipe Suggestions Card ────────────────────────────────────────────────
+class _AiRecipeBundleCard extends StatelessWidget {
+  final AiRecipeBundle? bundle;
+  final bool isLoading;
+  final ValueChanged<String> onIngredientTap;
+
+  const _AiRecipeBundleCard({
+    required this.bundle,
+    required this.isLoading,
+    required this.onIngredientTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isLoading && (bundle == null || bundle!.recipeName.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: isLoading ? _buildLoadingCard() : _buildBundleCard(context, bundle!),
+    );
+  }
+
+  Widget _buildLoadingCard() {
+    return Container(
+      key: const ValueKey('recipe-loading'),
+      margin: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0D9488).withValues(alpha: 0.08),
+            const Color(0xFF14B8A6).withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: const Color(0xFF0D9488).withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D9488)),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Skeleton(width: 150, height: 11, borderRadius: BorderRadius.circular(6)),
+                const SizedBox(height: 6),
+                Skeleton(width: 180, height: 10, borderRadius: BorderRadius.circular(6)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBundleCard(BuildContext context, AiRecipeBundle recipeData) {
+    return Container(
+      key: const ValueKey('recipe-analysis'),
+      margin: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0D9488).withValues(alpha: 0.08),
+            const Color(0xFF14B8A6).withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: const Color(0xFF0D9488).withValues(alpha: 0.25),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.restaurant_menu_rounded, size: 16, color: Color(0xFF0F766E)),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'AI Recipe Planner',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F766E),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        recipeData.recipeName,
+                        style: const TextStyle(fontSize: 8, color: Color(0xFF0F766E), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Making ${recipeData.recipeName}? Get matching ingredients:',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppTheme.textPrimary,
+                    fontSize: 11.5,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: recipeData.ingredients.map((ingredient) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6.0),
+                        child: ActionChip(
+                          avatar: const Icon(Icons.search_rounded, size: 12, color: Color(0xFF0F766E)),
+                          label: Text(ingredient),
+                          onPressed: () => onIngredientTap(ingredient),
+                          backgroundColor: const Color(0xFF0D9488).withValues(alpha: 0.08),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            side: BorderSide(color: const Color(0xFF0D9488).withValues(alpha: 0.2)),
+                          ),
+                          labelStyle: AppTypography.labelSmall.copyWith(
+                            color: const Color(0xFF0F766E),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 
 
