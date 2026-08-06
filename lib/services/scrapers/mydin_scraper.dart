@@ -35,6 +35,8 @@ class MyDinScraper extends BaseScraper {
       name: retailerName,
       logoUrl: 'assets/images/retailers/mydin.png',
       website: baseUrl,
+      latitude: 2.2803761059533056,
+      longitude: 102.39131648465751,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );

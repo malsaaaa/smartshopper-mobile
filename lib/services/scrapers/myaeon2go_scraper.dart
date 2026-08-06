@@ -38,6 +38,8 @@ class MyAeon2GoScraper extends BaseScraper {
       name: retailerName,
       logoUrl: 'assets/images/retailers/aeon.png',
       website: baseUrl,
+      latitude: 2.2365657630638127,
+      longitude: 102.28151321103672,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );

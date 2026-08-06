@@ -47,6 +47,8 @@ class LotusScraper extends BaseScraper {
       name: retailerName,
       logoUrl: 'assets/images/retailers/lotuss.png',
       website: _storeFront,
+      latitude: 2.218421926517962,
+      longitude: 102.2471096807353,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
