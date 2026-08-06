@@ -207,19 +207,19 @@ class _ShoppingListsScreenState extends ConsumerState<ShoppingListsScreen> {
   void _showDeleteConfirmation(ShoppingList list) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete List?'),
         content: Text(
           'Are you sure you want to delete "${list.name}"? This action cannot be undone.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               // Delete the list from Firestore
               await ref
                   .read(firestoreShoppingListsNotifierProvider.notifier)
@@ -247,7 +247,7 @@ class _ShoppingListsScreenState extends ConsumerState<ShoppingListsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Create Shopping List'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -268,18 +268,22 @@ class _ShoppingListsScreenState extends ConsumerState<ShoppingListsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
               final name = _listNameController.text.trim();
               if (name.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('List name cannot be empty')),
                 );
                 return;
               }
+
+              // Capture before async gap
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(dialogContext);
 
               // Create list in Firestore
               try {
@@ -290,14 +294,14 @@ class _ShoppingListsScreenState extends ConsumerState<ShoppingListsScreen> {
                     );
 
                 if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  nav.pop();
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('List created successfully')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(content: Text('Error creating list: $e')),
                   );
                 }

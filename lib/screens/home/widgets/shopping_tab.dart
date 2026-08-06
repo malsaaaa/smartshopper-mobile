@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
-import 'package:smartshopper_mobile/providers/firestore_auth_provider.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
+import 'package:smartshopper_mobile/providers/index.dart';
 
 class ShoppingTab extends ConsumerWidget {
   const ShoppingTab({super.key});
@@ -119,12 +119,20 @@ class _CartList extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
               children: [
                 for (final entry in grouped.entries) ...[
-                  _RetailerHeader(
-                    name: entry.key,
-                    logoUrl: entry.value
-                        .firstWhere((i) => i.retailerLogoUrl != null,
-                            orElse: () => entry.value.first)
-                        .retailerLogoUrl,
+                  Builder(
+                    builder: (context) {
+                      final subtotal = entry.value.fold<double>(0.0, (sum, item) => sum + (item.estimatedPrice * item.quantity));
+                      final itemCount = entry.value.length;
+                      return _RetailerHeader(
+                        name: entry.key,
+                        logoUrl: entry.value
+                            .firstWhere((i) => i.retailerLogoUrl != null,
+                                orElse: () => entry.value.first)
+                            .retailerLogoUrl,
+                        subtotal: subtotal,
+                        itemCount: itemCount,
+                      );
+                    }
                   ),
                   ...entry.value.map((item) => _CartItemRow(item: item)),
                 ],
@@ -136,6 +144,7 @@ class _CartList extends ConsumerWidget {
         // ── Bottom bar ─────────────────────────────────────────────
         _BottomBar(
           total: total,
+          items: items, // Pass items to the bottom bar for basket comparison
         ),
       ],
     );
@@ -169,7 +178,15 @@ class _CartList extends ConsumerWidget {
 class _RetailerHeader extends StatelessWidget {
   final String name;
   final String? logoUrl;
-  const _RetailerHeader({required this.name, this.logoUrl});
+  final double subtotal;
+  final int itemCount;
+
+  const _RetailerHeader({
+    required this.name,
+    this.logoUrl,
+    required this.subtotal,
+    required this.itemCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -204,9 +221,24 @@ class _RetailerHeader extends StatelessWidget {
                 size: 16, color: AppTheme.primary),
             const SizedBox(width: AppSpacing.sm),
           ],
-          Text(name,
-              style: AppTypography.labelLarge
-                  .copyWith(color: AppTheme.primary)),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$name ($itemCount ${itemCount == 1 ? 'item' : 'items'})',
+                  style: AppTypography.labelLarge.copyWith(color: AppTheme.primaryDark),
+                ),
+                Text(
+                  'RM${subtotal.toStringAsFixed(2)}',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: AppTheme.primaryDark,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -433,9 +465,11 @@ class _Btn extends StatelessWidget {
 
 class _BottomBar extends StatelessWidget {
   final double total;
+  final List<ShoppingItem> items;
 
   const _BottomBar({
     required this.total,
+    required this.items,
   });
 
   @override
@@ -478,24 +512,212 @@ class _BottomBar extends StatelessWidget {
                 ],
               ),
             ),
-            // Informational badge
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: Text(
-                'Shopping List',
-                style: AppTypography.labelLarge.copyWith(
-                  color: AppTheme.primary,
-                  fontWeight: FontWeight.bold,
+            // Compare Basket Button
+            ElevatedButton.icon(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => _CompareBasketSheet(items: items),
+                );
+              },
+              icon: const Icon(Icons.compare_arrows_rounded, size: 18),
+              label: const Text('Compare Basket'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CompareBasketSheet extends ConsumerWidget {
+  final List<ShoppingItem> items;
+  const _CompareBasketSheet({required this.items});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 1. Get all retailers
+    final retailersAsync = ref.watch(retailersStreamProvider);
+    final retailers = retailersAsync.value ?? [];
+
+    // 2. Map of retailerId -> total estimated cost, and retailerId -> missing item count
+    final Map<int, double> storeTotals = {};
+    final Map<int, int> storeMissingCounts = {};
+
+    for (final retailer in retailers) {
+      storeTotals[retailer.id] = 0.0;
+      storeMissingCounts[retailer.id] = 0;
+    }
+
+    // 3. For each cart item, lookup prices across other retailers
+    for (final item in items) {
+      if (item.productId == null) continue;
+      
+      final productPrices = ref.watch(pricesForProductProvider(item.productId!));
+
+      for (final retailer in retailers) {
+        // Find if this retailer has a price for this product
+        final match = productPrices.firstWhere(
+          (p) => p.retailerId == retailer.id,
+          orElse: () => Price(
+            id: 0,
+            productId: item.productId!,
+            retailerId: retailer.id,
+            price: -1.0,
+            productUrl: '',
+            scrapedAt: DateTime.now(),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        if (match.price >= 0.0) {
+          storeTotals[retailer.id] = storeTotals[retailer.id]! + (match.price * item.quantity);
+        } else {
+          // Fallback to active item's price or flag it as missing
+          storeMissingCounts[retailer.id] = storeMissingCounts[retailer.id]! + 1;
+          storeTotals[retailer.id] = storeTotals[retailer.id]! + (item.estimatedPrice * item.quantity);
+        }
+      }
+    }
+
+    // Sort retailers by total price (ascending)
+    final sortedRetailers = [...retailers]
+      ..sort((a, b) => (storeTotals[a.id] ?? 0.0).compareTo(storeTotals[b.id] ?? 0.0));
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(AppRadius.xl),
+          topRight: Radius.circular(AppRadius.xl),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.xxl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Basket Cost Comparison',
+                style: AppTypography.headline3.copyWith(fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Comparing ${items.length} items across all available supermarkets:',
+            style: AppTypography.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          ...sortedRetailers.map((retailer) {
+            final totalCost = storeTotals[retailer.id] ?? 0.0;
+            final missingCount = storeMissingCounts[retailer.id] ?? 0;
+            final hasMissing = missingCount > 0;
+            
+            // Find if this is the cheapest option
+            final isCheapest = sortedRetailers.isNotEmpty && sortedRetailers.first.id == retailer.id;
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                side: BorderSide(
+                  color: isCheapest ? AppTheme.primary : AppTheme.divider,
+                  width: isCheapest ? 1.5 : 0.8,
+                ),
+              ),
+              color: isCheapest ? AppTheme.primaryLight.withValues(alpha: 0.15) : null,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Row(
+                  children: [
+                    // Retailer Logo
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: retailer.logoUrl.isNotEmpty
+                           ? SmartImage(imageUrl: retailer.logoUrl)
+                           : const Icon(Icons.store_outlined, color: AppTheme.primary),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    // Name & Missing Warning
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            retailer.name,
+                            style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          if (hasMissing) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Missing $missingCount item${missingCount == 1 ? '' : 's'} (estimated)',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppTheme.warning,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    // Price
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'RM${totalCost.toStringAsFixed(2)}',
+                          style: AppTypography.headline3.copyWith(
+                            color: isCheapest ? AppTheme.primaryDark : AppTheme.textPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (isCheapest)
+                          Text(
+                            'CHEAPEST',
+                            style: AppTypography.labelSmall.copyWith(
+                              color: AppTheme.primaryDark,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

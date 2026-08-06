@@ -329,7 +329,7 @@ class BaseCard extends StatelessWidget {
           boxShadow: elevation > 0
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: elevation,
                     offset: Offset(0, elevation / 2),
                   )
@@ -588,7 +588,7 @@ class RetailerBadge extends StatelessWidget {
           const SizedBox(height: AppTheme.spacing8),
           if (isOutOfStock)
             Text(
-              'No Stock',
+              'Not Found',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: AppTheme.textTertiary,
                     fontWeight: FontWeight.bold,
@@ -649,7 +649,7 @@ class RetailerBadge extends StatelessWidget {
                 ],
               ),
             ),
-          if (distanceKm == null)
+          if (distanceKm == null && !isOutOfStock)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(

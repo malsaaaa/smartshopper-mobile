@@ -1,4 +1,6 @@
 /// Provider module exports
+library;
+
 export 'product_provider.dart';
 export 'notifications_provider.dart';
 export 'theme_provider.dart';
@@ -15,3 +17,4 @@ export 'firebase_storage_provider.dart';
 export 'notification_preferences_provider.dart';
 export 'search_providers.dart';
 export 'favorites_provider.dart';
+export 'navigation_provider.dart';

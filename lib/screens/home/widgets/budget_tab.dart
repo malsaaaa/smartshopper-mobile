@@ -59,41 +59,42 @@ class BudgetTab extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'MONTHLY LIMIT',
-                                    style: AppTypography.labelSmall.copyWith(
-                                      color: AppTheme.textTertiary,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _showEditLimitDialog(context, ref, limit),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'MONTHLY LIMIT',
+                                      style: AppTypography.labelSmall.copyWith(
+                                        color: AppTheme.textTertiary,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: AppSpacing.xs),
-                                  GestureDetector(
-                                    onTap: () => _showEditLimitDialog(context, ref, limit),
-                                    child: const Icon(
+                                    const SizedBox(width: AppSpacing.xs),
+                                    const Icon(
                                       Icons.edit_outlined,
                                       size: 14,
                                       color: AppTheme.primary,
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              SizedBox(
-                                width: double.infinity,
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'RM ${limit.toStringAsFixed(2)}',
-                                    style: AppTypography.headline1,
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'RM ${limit.toStringAsFixed(2)}',
+                                      style: AppTypography.headline1,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: AppSpacing.md),
@@ -171,6 +172,33 @@ class BudgetTab extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    if (isExceeded) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          border: Border.all(color: AppTheme.error.withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, color: AppTheme.error, size: 20),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Budget Warning: You are over limit by RM ${(spent - limit).toStringAsFixed(2)}!',
+                                style: AppTypography.labelLarge.copyWith(
+                                  color: AppTheme.error,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.xxl),
 
                     // ---- Category breakdown ----
@@ -444,11 +472,21 @@ class _PieChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (total <= 0) return;
-
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12;
+
+    if (total <= 0) {
+      paint.color = AppTheme.divider;
+      canvas.drawArc(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        0,
+        6.28,
+        false,
+        paint,
+      );
+      return;
+    }
 
     double startAngle = -1.57; // Start at top
 

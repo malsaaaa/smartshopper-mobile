@@ -37,7 +37,7 @@ class FCMService {
   }) async {
     // Skip FCM initialization on web platforms
     if (kIsWeb) {
-      print('⚠️  FCM skipped on web platform. Only Android/iOS supported.');
+      debugPrint('⚠️  FCM skipped on web platform. Only Android/iOS supported.');
       return;
     }
     
@@ -51,7 +51,7 @@ class FCMService {
 
     // Get initial token (permissions requested separately on login)
     final token = await _firebaseMessaging.getToken();
-    print('🔐 FCM Token: $token');
+    debugPrint('🔐 FCM Token: $token');
 
     // Sync topic subscriptions to the current preference state
     await _syncTopicSubscriptions();
@@ -196,7 +196,7 @@ class FCMService {
       sound: true,
     );
 
-    print('📱 Notification Permission: ${settings.authorizationStatus}');
+    debugPrint('📱 Notification Permission: ${settings.authorizationStatus}');
   }
 
   // ============== MESSAGE HANDLERS ==============
@@ -205,14 +205,14 @@ class FCMService {
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final type = message.data['type']?.toString();
     if (!_preferences.allowsNotificationType(type)) {
-      print('🔕 Notification suppressed by preferences: $type');
+      debugPrint('🔕 Notification suppressed by preferences: $type');
       return;
     }
 
-    print('📩 Foreground Message:');
-    print('Title: ${message.notification?.title}');
-    print('Body: ${message.notification?.body}');
-    print('Data: ${message.data}');
+    debugPrint('📩 Foreground Message:');
+    debugPrint('Title: ${message.notification?.title}');
+    debugPrint('Body: ${message.notification?.body}');
+    debugPrint('Data: ${message.data}');
 
     // Create in-app notification using a typed-safe builder.
     final notification = _buildInAppNotification(message);
@@ -226,7 +226,7 @@ class FCMService {
 
   /// Handle messages received in background (top-level function)
   static Future<void> _handleBackgroundMessage(RemoteMessage message) async {
-    print('📩 Background Message: ${message.notification?.title}');
+    debugPrint('📩 Background Message: ${message.notification?.title}');
     // This runs in a separate isolate, can't access context
     // Just log or store for later processing
   }
@@ -235,7 +235,7 @@ class FCMService {
   Future<void> _handleMessageTap(RemoteMessage? message) async {
     if (message == null) return;
 
-    print('🔔 Notification Tapped: ${message.notification?.title}');
+    debugPrint('🔔 Notification Tapped: ${message.notification?.title}');
 
     final route = message.data['route'] as String?;
     final productId = message.data['productId'] as String?;
@@ -422,13 +422,13 @@ class FCMService {
   /// Subscribe to topic
   Future<void> subscribeToTopic(String topic) async {
     await _firebaseMessaging.subscribeToTopic(topic);
-    print('✅ Subscribed to topic: $topic');
+    debugPrint('✅ Subscribed to topic: $topic');
   }
 
   /// Unsubscribe from topic
   Future<void> unsubscribeFromTopic(String topic) async {
     await _firebaseMessaging.unsubscribeFromTopic(topic);
-    print('❌ Unsubscribed from topic: $topic');
+    debugPrint('❌ Unsubscribed from topic: $topic');
   }
 
   /// Send test discount notification
@@ -439,13 +439,13 @@ class FCMService {
   }) async {
     // This is a client-side example
     // In production, send from backend/admin panel via Firebase Console or Admin SDK
-    print('📤 Would send: $title - $body');
-    print('📦 Data: $data');
+    debugPrint('📤 Would send: $title - $body');
+    debugPrint('📦 Data: $data');
   }
 
   /// Log user for analytics (optional)
   Future<void> logNotificationEvent(String eventName) async {
     // Can integrate with Analytics here
-    print('📊 Event logged: $eventName');
+    debugPrint('📊 Event logged: $eventName');
   }
 }

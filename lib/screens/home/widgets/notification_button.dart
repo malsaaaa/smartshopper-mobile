@@ -173,7 +173,7 @@ class _NotificationTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Material(
       color: isUnread
-          ? AppTheme.primary.withOpacity(0.05)
+          ? AppTheme.primary.withValues(alpha: 0.05)
           : Theme.of(context).colorScheme.surface,
       child: InkWell(
         onTap: () {

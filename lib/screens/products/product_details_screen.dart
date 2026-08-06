@@ -38,6 +38,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
   Future<void> _initLocation() async {
     var pos = await LocationService.getCurrentPosition();
+    if (pos == null) {
+      debugPrint('📍 [ProductDetailsScreen] Failed to resolve user position, using fallback');
+    }
     pos ??= Position(
       latitude: LocationService.fallbackLat,
       longitude: LocationService.fallbackLng,
@@ -178,11 +181,6 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Price Statistics
-                  _buildPriceStats(stats),
-
-                  const SizedBox(height: AppSpacing.lg),
-
                   // Sort Options
                   _buildSortOptions(),
 
@@ -269,50 +267,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             ),
             const SizedBox(height: AppSpacing.lg),
 
-            // Best Price Highlight
+            // Best Price Highlight & Stats
             if (stats.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppTheme.accentOrangeLight,
+                  color: AppTheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Best Price',
-                          style: AppTypography.labelSmall,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          'RM${stats['lowest']?.toStringAsFixed(2) ?? '0.00'}',
-                          style: AppTypography.headline3.copyWith(
-                            color: AppTheme.accentOrange,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Save Up To',
-                          style: AppTypography.labelSmall,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          'RM${stats['range']?.toStringAsFixed(2) ?? '0.00'}',
-                          style: AppTypography.labelLarge.copyWith(
-                            color: AppTheme.secondary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildStatCol('Cheapest', 'RM${stats['lowest']?.toStringAsFixed(2)}', AppTheme.primaryDark),
+                    _buildStatCol('Average', 'RM${stats['average']?.toStringAsFixed(2)}', AppTheme.textSecondary),
+                    _buildStatCol('Highest', 'RM${stats['highest']?.toStringAsFixed(2)}', AppTheme.error),
+                    _buildStatCol('Max Savings', 'RM${stats['range']?.toStringAsFixed(2)}', AppTheme.secondary),
                   ],
                 ),
               ),
@@ -322,64 +292,25 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
   }
 
-  /// Build price statistics cards
-  Widget _buildPriceStats(Map<String, double> stats) {
-    if (stats.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatCard(
-              'Lowest',
-              'RM${stats['lowest']?.toStringAsFixed(2) ?? '0.00'}',
-              AppTheme.secondary,
-            ),
+  /// Build column for individual pricing stat
+  Widget _buildStatCol(String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: AppTypography.labelSmall.copyWith(fontSize: 9),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: AppTypography.labelLarge.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: _buildStatCard(
-              'Highest',
-              'RM${stats['highest']?.toStringAsFixed(2) ?? '0.00'}',
-              AppTheme.error,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: _buildStatCard(
-              'Average',
-              'RM${stats['average']?.toStringAsFixed(2) ?? '0.00'}',
-              AppTheme.primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build individual stat card
-  Widget _buildStatCard(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: AppTypography.labelSmall),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            value,
-            style: AppTypography.labelLarge.copyWith(color: color),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

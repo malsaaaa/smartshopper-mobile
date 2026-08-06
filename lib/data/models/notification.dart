@@ -146,5 +146,5 @@ class Notification {
 
   @override
   String toString() =>
-      'Notification(id: $id, title: $title, type: $type, productName: $productName, discount: ${calculatedDiscount}%)';
+      'Notification(id: $id, title: $title, type: $type, productName: $productName, discount: $calculatedDiscount%)';
 }

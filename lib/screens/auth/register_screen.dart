@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
+import 'package:smartshopper_mobile/providers/index.dart';
 
 /// Register screen for new user account creation
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
@@ -106,14 +108,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Start loading
     setState(() => _isLoading = true);
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 2), () {
+    ref.read(signUpProvider.notifier).signUp(
+      email: email,
+      password: password,
+      name: name,
+    ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
-
-        // TODO: Replace with actual API call
-        // For now, navigate to home
         Navigator.pushReplacementNamed(context, '/home');
+      }
+    }).catchError((error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = error.toString().replaceAll('Exception:', '').trim();
+        });
       }
     });
   }
@@ -247,12 +256,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onChanged: (value) {
                           setState(() => _agreeToTerms = value ?? false);
                         },
-                        activeColor: AppTheme.primary,
+                        fillColor: WidgetStateProperty.resolveWith((states) =>
+                            states.contains(WidgetState.selected) ? AppTheme.primary : null),
                       ),
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
-                            // TODO: Navigate to terms & conditions
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Terms & Conditions'),
+                                content: const SingleChildScrollView(
+                                  child: Text(
+                                    'Welcome to SmartShopper! By using this app, you agree to our terms of service. '
+                                    'We collect location data to show you the nearest grocery stores and retrieve the most up-to-date pricing. '
+                                    'All scraped pricing is provided as-is for informational purposes.',
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            );
                           },
                           child: Text.rich(
                             TextSpan(
@@ -323,10 +351,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppTheme.error.withOpacity(0.1),
+        color: AppTheme.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
-          color: AppTheme.error.withOpacity(0.3),
+          color: AppTheme.error.withValues(alpha: 0.3),
         ),
       ),
       child: Row(

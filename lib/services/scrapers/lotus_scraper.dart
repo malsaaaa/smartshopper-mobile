@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -60,7 +61,7 @@ class LotusScraper extends BaseScraper {
       // Handle manual search if category is provided
       if (category != null && category.isNotEmpty) {
         final products = await _fetchProductsForQuery(category);
-        print(
+        debugPrint(
             '✅ Lotus: Scraped ${products.length} products for query "$category"');
         return products;
       }
@@ -70,12 +71,12 @@ class LotusScraper extends BaseScraper {
       for (final term in searchTerms) {
         final products = await _fetchProductsForQuery(term);
         all.addAll(products);
-        print('✅ Lotus: Scraped ${products.length} products for "$term"');
+        debugPrint('✅ Lotus: Scraped ${products.length} products for "$term"');
       }
-      print('✅ Lotus: Total scraped ${all.length} products');
+      debugPrint('✅ Lotus: Total scraped ${all.length} products');
       return all;
     } catch (e) {
-      print('❌ Lotus scraping error: $e');
+      debugPrint('❌ Lotus scraping error: $e');
       return [];
     }
   }
@@ -83,7 +84,7 @@ class LotusScraper extends BaseScraper {
   @override
   Future<(Product, Price)?> scrapeProductByUrl(String url) async {
     // URL scraping not supported for React SPA
-    print('⚠️ Lotus: scrapeProductByUrl is not supported for SPA pages.');
+    debugPrint('⚠️ Lotus: scrapeProductByUrl is not supported for SPA pages.');
     return null;
   }
 
@@ -145,13 +146,13 @@ class LotusScraper extends BaseScraper {
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
-        print('❌ Lotus API error ${response.statusCode}: ${response.body.substring(0, 200)}');
+        debugPrint('❌ Lotus API error ${response.statusCode}: ${response.body.substring(0, 200)}');
         return null;
       }
 
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      print('❌ Lotus API request failed: $e');
+      debugPrint('❌ Lotus API request failed: $e');
       return null;
     }
   }
@@ -213,7 +214,7 @@ class LotusScraper extends BaseScraper {
 
       return (product, priceObj);
     } catch (e) {
-      print('⚠️ Lotus: error parsing product: $e');
+      debugPrint('⚠️ Lotus: error parsing product: $e');
       return null;
     }
   }

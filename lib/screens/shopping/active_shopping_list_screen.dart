@@ -37,7 +37,7 @@ class _ActiveShoppingListScreenState
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Add Item'),
         content: SingleChildScrollView(
           child: Column(
@@ -81,7 +81,7 @@ class _ActiveShoppingListScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -100,6 +100,10 @@ class _ActiveShoppingListScreenState
               final listId =
                   activeList.effectiveId;
 
+              // Capture before async gap
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(dialogCtx);
+
               try {
                 await ref
                     .read(firestoreShoppingListsNotifierProvider.notifier)
@@ -111,15 +115,15 @@ class _ActiveShoppingListScreenState
                       estimatedPrice: price,
                     );
 
-                if (context.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                if (mounted) {
+                  nav.pop();
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('Item added successfully')),
                   );
                 }
               } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                if (mounted) {
+                  messenger.showSnackBar(
                     SnackBar(content: Text('Error: $e')),
                   );
                 }

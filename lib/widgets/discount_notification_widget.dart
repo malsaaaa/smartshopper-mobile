@@ -36,7 +36,7 @@ class DiscountNotificationCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppTheme.borderRadiusCard),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primary.withOpacity(0.1),
+              color: AppTheme.primary.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -54,8 +54,8 @@ class DiscountNotificationCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        AppTheme.primary.withOpacity(0.9),
-                        AppTheme.primary.withOpacity(0.7),
+                        AppTheme.primary.withValues(alpha: 0.9),
+                        AppTheme.primary.withValues(alpha: 0.7),
                       ],
                     ),
                   ),
@@ -81,7 +81,7 @@ class DiscountNotificationCard extends StatelessWidget {
                             vertical: AppTheme.spacing4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.error.withOpacity(0.2),
+                            color: AppTheme.error.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -156,7 +156,7 @@ class DiscountNotificationCard extends StatelessWidget {
                                 vertical: AppTheme.spacing6,
                               ),
                               decoration: BoxDecoration(
-                                color: AppTheme.accentOrange.withOpacity(0.15),
+                                color: AppTheme.accentOrange.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
                                   color: AppTheme.accentOrange,
@@ -255,7 +255,7 @@ class DiscountNotificationCard extends StatelessWidget {
                               vertical: AppTheme.spacing8,
                             ),
                             decoration: BoxDecoration(
-                              color: AppTheme.accentYellow.withOpacity(0.15),
+                              color: AppTheme.accentYellow.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
                                 color: AppTheme.accentYellow,

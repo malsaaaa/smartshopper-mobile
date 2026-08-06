@@ -137,16 +137,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
       // Collects raw product+price pairs from all retailers concurrently.
       final inMemoryResults = await scraperService.scrapeAllProducts(category: query);
 
-      // ── Step 2: Full Firestore-backed scrape (sequential, writes DB) ──────
-      // This is the slow step that ends with "✅ Scraping complete: {...}".
-      // We AWAIT it so the skeleton stays up until Firestore is fully settled
-      // and no more stream updates will come in to cause post-render flickers.
-      await scraperService.scrapeAllRetailers(
-        category: query,
-        storeInFirestore: true,
-      );
-
-      // ── Step 3: Persist in-memory results for price comparison ─────────────
+      // ── Step 2: Persist in-memory results for price comparison ─────────────
       if (mounted) {
         final products = <Product>[];
         final prices   = <Price>[];
@@ -165,6 +156,12 @@ class _SearchTabState extends ConsumerState<SearchTab> {
           ...prices,
         ];
       }
+
+      // ── Step 3: Save results to Firestore in the background (non-blocking) ──
+      // ignore: unawaited_futures
+      scraperService.storeScrapedProducts(inMemoryResults).catchError((e) {
+        debugPrint('Firestore background write bypassed: $e');
+      });
 
       // ── Step 4: Capture frozen snapshot & kick off AI in parallel ──────────
       if (mounted) {
@@ -390,71 +387,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                           const SizedBox(height: AppSpacing.lg),
                         ],
 
-                        // ── Quick Suggestions ─────────────────────────────────
-                        if (_selectedCategory == null && _selectedBrand == null) ...[
-                          Text('Try Searching For', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),
-                          const SizedBox(height: AppSpacing.sm),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                {'label': 'Milo', 'icon': Icons.local_cafe_outlined, 'color': const Color(0xFF7B4F2E)},
-                                {'label': 'Cooking Oil', 'icon': Icons.opacity_outlined, 'color': const Color(0xFFF59E0B)},
-                                {'label': 'Instant Noodles', 'icon': Icons.ramen_dining_outlined, 'color': const Color(0xFFEF4444)},
-                                {'label': 'Rice', 'icon': Icons.grain_outlined, 'color': const Color(0xFF10B981)},
-                                {'label': 'Milk', 'icon': Icons.local_drink_outlined, 'color': const Color(0xFF3B82F6)},
-                                {'label': 'Eggs', 'icon': Icons.egg_outlined, 'color': const Color(0xFFF97316)},
-                              ].map((item) {
-                                final label = item['label'] as String;
-                                final icon = item['icon'] as IconData;
-                                final color = item['color'] as Color;
-                                return GestureDetector(
-                                  onTap: () {
-                                    _searchController.text = label;
-                                    _onSearch(label);
-                                  },
-                                  child: Container(
-                                    width: 88,
-                                    height: 96,
-                                    margin: const EdgeInsets.only(right: AppSpacing.sm),
-                                    padding: const EdgeInsets.all(AppSpacing.sm),
-                                    decoration: BoxDecoration(
-                                      color: color.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                                      border: Border.all(color: color.withValues(alpha: 0.25)),
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: color.withValues(alpha: 0.15),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(icon, color: color, size: 20),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          label,
-                                          style: AppTypography.labelSmall.copyWith(
-                                            color: color,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 10,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                        ],
+
 
                         // ── Categories (Chips) ────────────────
                         Text('By Category', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),
@@ -477,9 +410,6 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                                         _selectedCategory = val ? type : null;
                                         if (val) _selectedBrand = null;
                                       });
-                                      if (val) {
-                                        _triggerLiveScrape(type);
-                                      }
                                     },
                                     backgroundColor: AppTheme.background,
                                     selectedColor: AppTheme.primary.withValues(alpha: 0.1),
@@ -516,9 +446,6 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                                         _selectedBrand = val ? brand : null;
                                         if (val) _selectedCategory = null;
                                       });
-                                      if (val) {
-                                        _triggerLiveScrape(brand);
-                                      }
                                     },
                                     backgroundColor: AppTheme.background,
                                     selectedColor: meta.color.withValues(alpha: 0.1),
@@ -571,7 +498,18 @@ class _SearchTabState extends ConsumerState<SearchTab> {
                           const SizedBox(height: AppSpacing.lg),
                           Text('Featured Products', style: AppTypography.labelLarge.copyWith(color: AppTheme.textSecondary)),
                           const SizedBox(height: AppSpacing.sm),
-                          ...(_shuffledFeaturedProducts ?? allProducts).take(10).map((p) => _BrandCard(product: p)),
+                          SizedBox(
+                            height: 160,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: (_shuffledFeaturedProducts ?? allProducts).length.clamp(0, 10),
+                              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                              itemBuilder: (context, index) {
+                                final p = (_shuffledFeaturedProducts ?? allProducts)[index];
+                                return _CompactProductCard(product: p);
+                              },
+                            ),
+                          ),
                         ],
                         const SizedBox(height: AppSpacing.xxl),
                       ],
@@ -593,7 +531,7 @@ class _SearchResults extends ConsumerWidget {
   final List<Product> results;
   final String query;
 
-  const _SearchResults({super.key, required this.results, required this.query});
+  const _SearchResults({required this.results, required this.query});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -806,11 +744,96 @@ class _BrandCard extends ConsumerWidget {
   }
 }
 
+class _CompactProductCard extends ConsumerWidget {
+  final Product product;
+  const _CompactProductCard({required this.product});
 
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bestPrice = ref.watch(bestPriceForProductProvider(product.id));
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          '/product-details',
+          arguments: product.id,
+        );
+      },
+      child: Container(
+        width: 140,
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppTheme.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  child: product.imageUrl.isNotEmpty
+                      ? (product.imageUrl.startsWith('assets/')
+                          ? Image.asset(product.imageUrl, fit: BoxFit.contain)
+                          : Image.network(
+                              product.imageUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder: (ctx, _, __) => const Icon(
+                                Icons.image_not_supported_outlined,
+                                color: Colors.grey,
+                                size: 24,
+                              ),
+                            ))
+                      : const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Colors.grey,
+                          size: 24,
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              product.name,
+              style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.bold, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              product.category,
+              style: AppTypography.bodySmall.copyWith(fontSize: 10, color: AppTheme.textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            if (bestPrice != null)
+              Text(
+                'Cheapest RM ${bestPrice.price.toStringAsFixed(2)}',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              )
+            else
+              Text(
+                'No prices',
+                style: AppTypography.bodySmall.copyWith(fontSize: 10, color: AppTheme.textSecondary),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // ── Search results skeleton loader ─────────────────────────────────────────────
 class _SearchResultsSkeleton extends StatelessWidget {
-  const _SearchResultsSkeleton({super.key});
+  const _SearchResultsSkeleton();
 
   @override
   Widget build(BuildContext context) {

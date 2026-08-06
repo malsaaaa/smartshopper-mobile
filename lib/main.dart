@@ -78,7 +78,7 @@ Future<void> _maybeGenerateWeeklyDigest() async {
 void _handleNotificationTap(String? route, Map<String, dynamic>? data) {
   if (route == null) return;
   
-  print('🔔 Handling notification tap: $route');
+  debugPrint('🔔 Handling notification tap: $route');
   
   // Navigate to the appropriate screen
   navigatorKey.currentState?.pushNamed(

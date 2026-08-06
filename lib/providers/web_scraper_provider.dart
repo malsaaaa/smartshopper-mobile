@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smartshopper_mobile/providers/firestore_user_provider.dart';
 import 'package:smartshopper_mobile/services/web_scraper_service.dart';
 
 /// Provider for WebScraperService singleton
@@ -11,15 +11,6 @@ final webScraperServiceProvider = Provider<WebScraperService>((ref) {
 
 /// Provider to manage the remote scraper listener in the background
 final webScraperListenerProvider = Provider<WebScraperListener?>((ref) {
-  final userAsync = ref.watch(firestoreUserNotifierProvider);
-  final isAdmin = userAsync.value?.isAdmin ?? false;
-
-  // Bypassed for development so that scraping can be triggered on any debug device/emulator
-  const bool devForceListener = true;
-  if (!isAdmin && !devForceListener) {
-    return null;
-  }
-
   final service = ref.watch(webScraperServiceProvider);
   final listener = WebScraperListener(service);
   listener.start();
@@ -39,7 +30,7 @@ class WebScraperListener {
   void start() {
     if (_subscription != null) return;
 
-    print('📡 Background Scraper Listener starting...');
+    debugPrint('📡 Background Scraper Listener starting...');
 
     _subscription = FirebaseFirestore.instance
         .collection('scraper_jobs')
@@ -61,7 +52,7 @@ class WebScraperListener {
           }
 
           try {
-            print('⚙️ Processing remote scraper job for $retailerName...');
+            debugPrint('⚙️ Processing remote scraper job for $retailerName...');
             
             // 1. Update status to running
             await doc.reference.update({
@@ -79,9 +70,9 @@ class WebScraperListener {
               'itemsScraped': count,
               'updatedAt': FieldValue.serverTimestamp(),
             });
-            print('✅ Remote scraper job completed for $retailerName ($count items)');
+            debugPrint('✅ Remote scraper job completed for $retailerName ($count items)');
           } catch (e) {
-            print('❌ Remote scraper job failed for $retailerName: $e');
+            debugPrint('❌ Remote scraper job failed for $retailerName: $e');
             // Update status to error
             await doc.reference.update({
               'status': 'error',

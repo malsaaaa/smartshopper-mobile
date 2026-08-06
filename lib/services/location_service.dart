@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -18,6 +19,12 @@ class LocationService {
   // Cache to store resolved coordinates to avoid redundant API queries.
   // Key format: "retailerName_userLat_userLon" (user coords rounded to 2 decimals)
   static final Map<String, Map<String, double>> _coordsCache = {};
+
+  /// Force-clear the coordinates cache to fetch fresh coordinates
+  static void clearCache() {
+    _coordsCache.clear();
+    debugPrint('🧹 [LocationService] Coordinates cache cleared');
+  }
 
   // Timestamp of the last OpenStreetMap request to enforce rate limits
   static DateTime _lastOsmRequestTime = DateTime.fromMillisecondsSinceEpoch(0);
@@ -43,7 +50,7 @@ class LocationService {
         final lonKey = userLon.toStringAsFixed(2);
         cacheKey = '${queryName}_${latKey}_$lonKey';
         if (_coordsCache.containsKey(cacheKey)) {
-          print('📦 [LocationService] Cache hit for $queryName at ($latKey, $lonKey): ${_coordsCache[cacheKey]}');
+          debugPrint('📦 [LocationService] Cache hit for $queryName at ($latKey, $lonKey): ${_coordsCache[cacheKey]}');
           return _coordsCache[cacheKey];
         }
       }
@@ -191,7 +198,7 @@ class LocationService {
                   // Ensure it's not the generic center point of Malaysia (4.21, 101.97)
                   final distToMY = (itemLat - 4.210484).abs() + (itemLon - 101.975766).abs();
                   if (distToMY > 0.5) {
-                    print('📍 [Google Maps] Dynamic Query: "$addressQuery" -> Resolved POI: ${first['formatted_address']} ($itemLat, $itemLon)');
+                    debugPrint('📍 [Google Maps] Dynamic Query: "$addressQuery" -> Resolved POI: ${first['formatted_address']} ($itemLat, $itemLon)');
                     return {
                       'latitude': itemLat,
                       'longitude': itemLon,
@@ -287,7 +294,7 @@ class LocationService {
       final difference = now.difference(_lastOsmRequestTime);
       if (difference.inMilliseconds < 1200) {
         final waitTime = 1200 - difference.inMilliseconds;
-        print('⏱️ [Nominatim] Rate limit protection: waiting ${waitTime}ms...');
+        debugPrint('⏱️ [Nominatim] Rate limit protection: waiting ${waitTime}ms...');
         await Future.delayed(Duration(milliseconds: waitTime));
       }
       _lastOsmRequestTime = DateTime.now();
@@ -300,11 +307,27 @@ class LocationService {
         final List results = json.decode(response.body);
         
         if (results.isNotEmpty) {
+          // Filter results to only valid store POI types
+          final validResults = results.where((item) {
+            final type = item['type']?.toString().toLowerCase() ?? '';
+            final isInvalid = type == 'subway_entrance' || 
+                              type == 'parking' || 
+                              type == 'bus_stop' || 
+                              type == 'plant_nursery' || 
+                              type == 'station' || 
+                              type == 'bus_station' || 
+                              type == 'stop';
+            return !isInvalid;
+          }).toList();
+
+          // Use fallback to original list if all results were filtered out
+          final listToUse = validResults.isNotEmpty ? validResults : results;
+
           if (userLat != null && userLon != null) {
             double minDistance = double.infinity;
             Map<String, double>? closestCoords;
             
-            for (final item in results) {
+            for (final item in listToUse) {
               final itemLat = double.tryParse(item['lat'] ?? '');
               final itemLon = double.tryParse(item['lon'] ?? '');
               if (itemLat != null && itemLon != null) {
@@ -319,15 +342,15 @@ class LocationService {
               }
             }
             if (closestCoords != null) {
-              print('📍 User coordinates: ($userLat, $userLon) | Closest $queryText: (${closestCoords['latitude']}, ${closestCoords['longitude']}) - Distance: ${minDistance.toStringAsFixed(2)}km');
+              debugPrint('📍 User coordinates: ($userLat, $userLon) | Closest $queryText: (${closestCoords['latitude']}, ${closestCoords['longitude']}) - Distance: ${minDistance.toStringAsFixed(2)}km');
               return closestCoords;
             }
           }
           
-          // Fallback to first result if user location is null
+          // Fallback to first result in our filtered/unfiltered list if user location is null
           return {
-            'latitude': double.parse(results[0]['lat']),
-            'longitude': double.parse(results[0]['lon']),
+            'latitude': double.parse(listToUse[0]['lat']),
+            'longitude': double.parse(listToUse[0]['lon']),
           };
         }
       }
@@ -344,15 +367,20 @@ class LocationService {
     if (permission == LocationPermission.denied) {
       // Request permission if not granted
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return null;
+      if (permission == LocationPermission.denied) {
+        return null;
+      }
     }
     
     // Return null if permission is permanently blocked
-    if (permission == LocationPermission.deniedForever) return null;
+    if (permission == LocationPermission.deniedForever) {
+      return null;
+    }
 
     // Check if device GPS service is turned on
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
+      debugPrint('📍 [LocationService] Location service disabled, returning null');
       return null;
     }
 
@@ -364,10 +392,13 @@ class LocationService {
       // 2. Fetch active coordinates with medium accuracy (cell/WiFi)
       // which resolves instantly without waiting for a hardware GPS lock.
       return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 10),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
     } catch (e) {
+      debugPrint('❌ [LocationService] Exception in getCurrentPosition: $e');
       return null;
     }
   }
@@ -380,13 +411,21 @@ class LocationService {
       return null;
     }
     
-    // Return null if user position is not loaded yet
-    if (currentPos == null) {
-      return null;
-    }
+    final pos = currentPos ?? Position(
+      latitude: fallbackLat,
+      longitude: fallbackLng,
+      timestamp: DateTime.now(),
+      accuracy: 0.0,
+      altitude: 0.0,
+      heading: 0.0,
+      speed: 0.0,
+      speedAccuracy: 0.0,
+      altitudeAccuracy: 0.0,
+      headingAccuracy: 0.0,
+    );
     
-    final lat1 = currentPos.latitude;
-    final lon1 = currentPos.longitude;
+    final lat1 = pos.latitude;
+    final lon1 = pos.longitude;
     
     // Calculate distance using Haversine formula
     return _haversine(lat1, lon1, retailer.latitude!, retailer.longitude!);

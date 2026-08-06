@@ -1,4 +1,5 @@
 /// Utility functions for products and naming standardization
+library;
 
 // Extracts the first size token from a product name using strict word-boundary regex.
 // Returns empty string if no size is found.
@@ -183,6 +184,14 @@ String extractBrand(String productName) {
       lower.contains('nestlé')) {
     return 'NESTLE';
   }
+  if (lower.contains('lotus\'s') ||
+      lower.contains('lotuss') ||
+      lower.contains('lotus') ||
+      lower.contains('tesco')) {
+    return 'LOTUS';
+  }
+  if (lower.contains('mydin')) return 'MYDIN';
+  if (lower.contains('aeon') || lower.contains('myaeon2go')) return 'AEON';
   if (lower.contains('buruh')) return 'BURUH';
   if (lower.contains('faiza')) return 'FAIZA';
   if (lower.contains('knife')) return 'KNIFE';
@@ -203,7 +212,10 @@ String extractBrand(String productName) {
   // Fallback: extract the first word in uppercase if it is long enough, else other
   final words = productName.trim().split(RegExp(r'\s+'));
   if (words.isNotEmpty) {
-    final first = words[0].replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+    var first = words[0].replaceAll(RegExp(r"[^a-zA-Z0-9']"), '').toUpperCase();
+    if (first.endsWith("'S")) {
+      first = first.substring(0, first.length - 2);
+    }
     if (first.length >= 3) return first;
   }
   
@@ -408,8 +420,11 @@ String getProductMatchKey(String name) {
   if (lower.contains('boh')) {
     final size = sz(lower);
     String type = 'regular';
-    if (lower.contains('green')) type = 'green';
-    else if (lower.contains('earl grey')) type = 'earlgrey';
+    if (lower.contains('green')) {
+      type = 'green';
+    } else if (lower.contains('earl grey')) {
+      type = 'earlgrey';
+    }
     return 'boh_${type}_$size';
   }
 

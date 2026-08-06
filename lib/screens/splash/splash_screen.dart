@@ -141,14 +141,17 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             ),
                           ],
                         ),
-                        child: Image.asset(
-                          'assets/images/logo/app_icon.png',
-                          height: 80,
-                          width: 80,
-                          errorBuilder: (context, error, stackTrace) => const Icon(
-                            Icons.shopping_cart_rounded,
-                            size: 80,
-                            color: AppTheme.primary,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/logo/app_icon.png',
+                            height: 80,
+                            width: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              Icons.shopping_cart_rounded,
+                              size: 80,
+                              color: AppTheme.primary,
+                            ),
                           ),
                         ),
                       ),

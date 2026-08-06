@@ -5,7 +5,7 @@ import 'package:smartshopper_mobile/providers/web_scraper_provider.dart';
 /// Screen for testing and managing web scraping
 /// This is a utility screen for development/admin purposes
 class WebScraperControlScreen extends ConsumerStatefulWidget {
-  const WebScraperControlScreen({Key? key}) : super(key: key);
+  const WebScraperControlScreen({super.key});
 
   @override
   ConsumerState<WebScraperControlScreen> createState() => _WebScraperControlScreenState();

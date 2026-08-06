@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -52,7 +53,7 @@ class MyDinScraper extends BaseScraper {
           pageSize: defaultPageSize,
           currentPage: pageNumber ?? 1,
         );
-        print('✅ MyDin: Scraped ${products.length} products for search category "$category"');
+        debugPrint('✅ MyDin: Scraped ${products.length} products for search category "$category"');
         return products;
       }
 
@@ -60,7 +61,7 @@ class MyDinScraper extends BaseScraper {
       final allProducts = <(Product, Price)>[];
 
       for (final term in searchTerms) {
-        print('🔄 MyDin: Scraping search results for "$term"...');
+        debugPrint('🔄 MyDin: Scraping search results for "$term"...');
         final products = await _fetchProducts(
           search: term,
           pageSize: defaultPageSize,
@@ -69,19 +70,19 @@ class MyDinScraper extends BaseScraper {
 
         if (products.isNotEmpty) {
           allProducts.addAll(products);
-          print('✅ MyDin: Scraped ${products.length} products for "$term"');
+          debugPrint('✅ MyDin: Scraped ${products.length} products for "$term"');
         } else {
-          print('⚠️ MyDin: No products found for "$term"');
+          debugPrint('⚠️ MyDin: No products found for "$term"');
         }
 
         // Delay 500ms between search requests
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      print('✅ MyDin: Scraped a total of ${allProducts.length} products across all search terms');
+      debugPrint('✅ MyDin: Scraped a total of ${allProducts.length} products across all search terms');
       return allProducts;
     } catch (e) {
-      print('❌ MyDin scraping error: $e');
+      debugPrint('❌ MyDin scraping error: $e');
       return [];
     }
   }
@@ -107,7 +108,7 @@ class MyDinScraper extends BaseScraper {
       if (products.isEmpty) return null;
       return products.first;
     } catch (e) {
-      print('❌ MyDin product URL scraping error: $e');
+      debugPrint('❌ MyDin product URL scraping error: $e');
       return null;
     }
   }
@@ -157,7 +158,7 @@ class MyDinScraper extends BaseScraper {
 
     // Handle failure
     if (response.statusCode != 200) {
-      print('❌ MyDin API failed: ${response.statusCode}');
+      debugPrint('❌ MyDin API failed: ${response.statusCode}');
       return [];
     }
 
@@ -176,7 +177,7 @@ class MyDinScraper extends BaseScraper {
         final price = _mapPrice(item, product.id);
         results.add((product, price));
       } catch (e) {
-        print('⚠️ Error parsing MyDin API product: $e');
+        debugPrint('⚠️ Error parsing MyDin API product: $e');
       }
     }
 

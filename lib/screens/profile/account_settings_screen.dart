@@ -214,10 +214,10 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppTheme.secondary.withOpacity(0.1),
+                  color: AppTheme.secondary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(
-                    color: AppTheme.secondary.withOpacity(0.3),
+                    color: AppTheme.secondary.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -246,10 +246,10 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppTheme.error.withOpacity(0.1),
+                  color: AppTheme.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(
-                    color: AppTheme.error.withOpacity(0.3),
+                    color: AppTheme.error.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -390,7 +390,78 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  // TODO: Show delete account confirmation dialog
+                  final confirmController = TextEditingController();
+                  showDialog(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: AppTheme.error),
+                          const SizedBox(width: 8),
+                          const Text('Delete Account'),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'This will permanently delete your account and all associated data including shopping lists, budgets, and saved products.\n\nThis action cannot be undone.',
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Type DELETE to confirm:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: confirmController,
+                            decoration: const InputDecoration(
+                              hintText: 'DELETE',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppTheme.error,
+                          ),
+                          onPressed: () async {
+                            if (confirmController.text.trim() != 'DELETE') {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please type DELETE to confirm.')),
+                              );
+                              return;
+                            }
+                            Navigator.pop(dialogContext);
+                            try {
+                              final authService = ref.read(firestoreAuthServiceProvider);
+                              await authService.deleteAccount();
+                              if (context.mounted) {
+                                Navigator.pushNamedAndRemoveUntil(
+                                  context, '/login', (route) => false,
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to delete account: $e')),
+                                );
+                              }
+                            }
+                          },
+                          child: const Text('Delete Account'),
+                        ),
+                      ],
+                    ),
+                  );
                 },
               ),
             ),

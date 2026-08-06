@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:smartshopper_mobile/data/models/index.dart' as models;
@@ -25,7 +26,7 @@ class FirestoreUserService {
     String? profilePicture,
   }) async {
     try {
-      print('📝 Creating/updating user in Firestore: userId=$userId, email=$email');
+      debugPrint('📝 Creating/updating user in Firestore: userId=$userId, email=$email');
       await _usersCollection.doc(userId).set(
         {
           'id': userId,
@@ -37,9 +38,9 @@ class FirestoreUserService {
         },
         SetOptions(merge: true),
       );
-      print('✅ User profile saved to Firestore');
+      debugPrint('✅ User profile saved to Firestore');
     } catch (e) {
-      print('❌ Failed to create/update user in Firestore: $e');
+      debugPrint('❌ Failed to create/update user in Firestore: $e');
       throw Exception('Failed to create/update user: $e');
     }
   }

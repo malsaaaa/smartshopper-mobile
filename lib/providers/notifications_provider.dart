@@ -1,4 +1,6 @@
 /// Notifications State Management with Provider
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/services/notification_service.dart';

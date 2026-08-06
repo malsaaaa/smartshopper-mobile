@@ -7,8 +7,12 @@
 ///
 /// The free tier is generous enough for all in-app AI features.
 class GeminiConfig {
-  /// Paste your Gemini API key here.
-  static const String apiKey = 'YOUR_GEMINI_API_KEY_HERE';
+  /// Paste your Gemini API key here or pass it at launch time via:
+  /// --dart-define=GEMINI_API_KEY=your_key
+  static const String apiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: 'YOUR_GEMINI_API_KEY_HERE',
+  );
 
   /// Model to use — Gemini 3.5 Flash is the latest high-speed production model.
   static const String model = 'gemini-3.5-flash';

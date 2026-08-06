@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:smartshopper_mobile/data/models/notification.dart' as notif;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -380,9 +381,9 @@ class NotificationService {
     // Example:
     // await FirebaseMessaging.instance.sendMulticast(...)
     
-    print('📱 Push Notification Sent:');
-    print('Title: $title');
-    print('Message: $message');
-    if (data != null) print('Data: $data');
+    debugPrint('📱 Push Notification Sent:');
+    debugPrint('Title: $title');
+    debugPrint('Message: $message');
+    if (data != null) debugPrint('Data: $data');
   }
 }

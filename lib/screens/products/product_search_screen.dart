@@ -66,10 +66,9 @@ class _ProductSearchScreenState extends ConsumerState<ProductSearchScreen> {
       
       // 3. Attempt to save in Firestore in background (will succeed if admin, fail silently if regular user)
       // ignore: unawaited_futures
-      scraperService.scrapeAllRetailers(
-        category: query.trim(),
-        storeInFirestore: true,
-      ).catchError((e) => debugPrint('Firestore write bypassed: $e'));
+      scraperService.storeScrapedProducts(results).catchError((e) {
+        debugPrint('Firestore background write bypassed: $e');
+      });
       
       if (mounted) {
         _performSearch(query);

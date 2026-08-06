@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/services/scrapers/base_scraper.dart';
@@ -42,7 +43,7 @@ class WebScraperService {
   }) async {
     final results = <String, int>{};
 
-    print('🔍 Starting parallel scrape of all retailers...');
+    debugPrint('🔍 Starting parallel scrape of all retailers...');
 
     final tasks = _scrapers.entries.map((entry) async {
       final retailerName = entry.key;
@@ -57,7 +58,7 @@ class WebScraperService {
         );
         return MapEntry(retailerName, count);
       } catch (e) {
-        print('❌ Error scraping $retailerName: $e');
+        debugPrint('❌ Error scraping $retailerName: $e');
         return MapEntry(retailerName, 0);
       }
     });
@@ -65,8 +66,22 @@ class WebScraperService {
     final list = await Future.wait(tasks);
     results.addEntries(list);
 
-    print('✅ Scraping complete: $results');
+    debugPrint('✅ Scraping complete: $results');
     return results;
+  }
+
+  /// Save a list of already scraped products and prices to Firestore in the background
+  Future<void> storeScrapedProducts(List<(Product, Price)> products) async {
+    // Save retailer info first
+    for (final entry in _scrapers.entries) {
+      try {
+        await _storeRetailer(entry.value.getRetailerInfo());
+      } catch (e) {
+        debugPrint('Error storing retailer info: $e');
+      }
+    }
+    // Store all products
+    await _storeProducts(products);
   }
 
   /// Resolve in-memory scraped items against each other and the current catalog
@@ -134,7 +149,7 @@ class WebScraperService {
         final products = await entry.value.scrapeProducts(category: category);
         return products;
       } catch (e) {
-        print('❌ Error scraping ${entry.key}: $e');
+        debugPrint('❌ Error scraping ${entry.key}: $e');
         return <(Product, Price)>[];
       }
     });
@@ -158,7 +173,7 @@ class WebScraperService {
   }) async {
     final scraper = _scrapers[_normalizeKey(retailerName)];
     if (scraper == null) {
-      print('❌ Scraper not found for: $retailerName (normalized: "${_normalizeKey(retailerName)}", available: ${_scrapers.keys.toList()})');
+      debugPrint('❌ Scraper not found for: $retailerName (normalized: "${_normalizeKey(retailerName)}", available: ${_scrapers.keys.toList()})');
       return 0;
     }
 
@@ -181,7 +196,7 @@ class WebScraperService {
         'message': message,
       });
     } catch (e) {
-      print('Error writing scraper log: $e');
+      debugPrint('Error writing scraper log: $e');
     }
   }
 
@@ -193,7 +208,7 @@ class WebScraperService {
     int? pageNumber,
     String? category,
   }) async {
-    print('🔄 Scraping $retailerName...');
+    debugPrint('🔄 Scraping $retailerName...');
     
     // Normalize casing for logs/display
     final displayRetailer = scraper.getRetailerInfo().name;
@@ -218,7 +233,7 @@ class WebScraperService {
       );
 
       if (products.isEmpty) {
-        print('⚠️ No products found for $retailerName');
+        debugPrint('⚠️ No products found for $retailerName');
         await _log('WARN', displayRetailer, 'Connected, but no products were found. Scraping completed with 0 items.');
         return 0;
       }
@@ -233,7 +248,7 @@ class WebScraperService {
       await _log('SUCCESS', displayRetailer, 'Scraping job completed. ${products.length} prices updated in database.');
       return products.length;
     } catch (e) {
-      print('❌ Error scraping $displayRetailer: $e');
+      debugPrint('❌ Error scraping $displayRetailer: $e');
       await _log('ERROR', displayRetailer, 'Scraping job failed with error: $e');
       return 0;
     }
@@ -253,9 +268,9 @@ class WebScraperService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('✅ Stored retailer: ${retailer.name}');
+      debugPrint('✅ Stored retailer: ${retailer.name}');
     } catch (e) {
-      print('❌ Error storing retailer ${retailer.name}: $e');
+      debugPrint('❌ Error storing retailer ${retailer.name}: $e');
     }
   }
 
@@ -339,6 +354,48 @@ class WebScraperService {
     return null;
   }
 
+  /// Checks whether two product names contain mutually exclusive sub-variants
+  /// (e.g. Basmati vs Wangi rice, Canola vs Sunflower oil, UHT vs Powder beverages).
+  bool _areSubVariantsCompatible(String name1, String name2) {
+    final n1 = name1.toLowerCase();
+    final n2 = name2.toLowerCase();
+
+    const variantGroups = [
+      // Rice types
+      ['basmati', 'basmathi'],
+      ['wangi', 'fragrant', 'jasmine'],
+      ['tempatan', 'local'],
+      ['ponni'],
+      ['brown', 'perang'],
+      ['glutinous', 'pulut'],
+
+      // Oil types
+      ['canola'],
+      ['corn', 'jagung'],
+      ['sunflower', 'bunga matahari'],
+      ['coconut', 'kelapa'],
+      ['olive', 'zaitun'],
+      ['blend', 'campuran'],
+
+      // Milo / Beverages: Liquid vs Powder vs Multipacks
+      ['uht', 'rtd', 'liquid', 'kotak'],
+      ['3in1', '3 in 1', 'three in one'],
+      ['fuze', 'fuse'],
+      ['cereal', 'bijirin'],
+    ];
+
+    for (final group in variantGroups) {
+      final has1 = group.any((term) => n1.contains(term));
+      final has2 = group.any((term) => n2.contains(term));
+
+      if (has1 != has2) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   /// Resolves the product ID using NLP token-matching, brand matching, and volume comparison
   int _resolveProductEntity(String name, String category, List<Product> existingProducts) {
     final brand = extractBrand(name);
@@ -352,7 +409,6 @@ class WebScraperService {
 
     double bestScore = 0.0;
     Product? bestMatch;
-    double bestThreshold = 0.52;
 
     for (final existing in existingProducts) {
       // 1. Product Type (Category) must match (e.g. Cooking Ingredients vs Beverages)
@@ -362,11 +418,14 @@ class WebScraperService {
       final existingBrand = extractBrand(existing.name);
       if (existingBrand != brand) continue;
 
+      // New: Strict sub-variant compatibility check (e.g. Basmati vs Wangi)
+      if (!_areSubVariantsCompatible(name, existing.name)) continue;
+
       // 3. Mathematical Quantity/Multipack safety check
       final existingQty = _parseQuantity(existing.name);
       
       bool qtyMatch = true;
-      double threshold = 0.52; // Default required matching confidence (52%)
+      double threshold = 0.65; // Default required matching confidence (65%)
       
       if (scraperQty != null && existingQty != null) {
         // Strict matching: both sizes defined
@@ -376,8 +435,8 @@ class WebScraperService {
           qtyMatch = false;
         }
       } else if ((scraperQty == null && existingQty != null) || (scraperQty != null && existingQty == null)) {
-        // Pragmatic matching: only one has size. Allow merge if similarity is extremely high (>= 75%)
-        threshold = 0.75;
+        // Pragmatic matching: only one has size. Allow merge if similarity is extremely high (>= 80%)
+        threshold = 0.80;
       }
       
       if (!qtyMatch) continue; // Size mismatch -> reject merge!
@@ -407,13 +466,12 @@ class WebScraperService {
       if (hybridScore >= threshold && hybridScore > bestScore) {
         bestScore = hybridScore;
         bestMatch = existing;
-        bestThreshold = threshold;
       }
     }
 
     // Reuse ID if matches meet the required similarity threshold
     if (bestMatch != null) {
-        print('🤖 Entity Resolution: Merged "$name" with existing "${bestMatch.name}" (Similarity: ${(bestScore*100).toStringAsFixed(0)}%)');
+        debugPrint('🤖 Entity Resolution: Merged "$name" with existing "${bestMatch.name}" (Similarity: ${(bestScore*100).toStringAsFixed(0)}%)');
       return bestMatch.id;
     }
 
@@ -433,9 +491,9 @@ class WebScraperService {
         existingProducts = snapshot.docs.map((doc) => Product.fromFirestore(doc.data(), doc.id)).toList();
         _cachedCatalog = List.from(existingProducts);
       }
-      print('🤖 Loaded ${existingProducts.length} existing products for similarity deduplication (cached: ${_cachedCatalog != null}).');
+      debugPrint('🤖 Loaded ${existingProducts.length} existing products for similarity deduplication (cached: ${_cachedCatalog != null}).');
     } catch (e) {
-      print('⚠️ Failed to pre-load catalog. Scraping will default to exact string hashes: $e');
+      debugPrint('⚠️ Failed to pre-load catalog. Scraping will default to exact string hashes: $e');
     }
 
     // Batch operations chunk size (max 500 writes limit, using 200 pairs = 400 writes)
@@ -509,13 +567,13 @@ class WebScraperService {
 
         await batch.commit();
         totalStored += chunk.length;
-        print('✅ Stored chunk ${start ~/ chunkSize + 1}: ${chunk.length} products (total: $totalStored)');
+        debugPrint('✅ Stored chunk ${start ~/ chunkSize + 1}: ${chunk.length} products (total: $totalStored)');
       } catch (e) {
-        print('❌ Error storing products chunk [$start-$end]: $e');
+        debugPrint('❌ Error storing products chunk [$start-$end]: $e');
       }
     }
 
-    print('✅ Stored $totalStored / ${products.length} products in total');
+    debugPrint('✅ Stored $totalStored / ${products.length} products in total');
   }
 
   /// Generate clean product key from name
@@ -579,7 +637,7 @@ class WebScraperService {
 
       return products;
     } catch (e) {
-      print('❌ Error getting products for $retailerName: $e');
+      debugPrint('❌ Error getting products for $retailerName: $e');
       return [];
     }
   }
@@ -598,7 +656,7 @@ class WebScraperService {
         'lastUpdate': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('❌ Error getting scraping stats: $e');
+      debugPrint('❌ Error getting scraping stats: $e');
       return {};
     }
   }
@@ -606,7 +664,7 @@ class WebScraperService {
   /// Purge all scraped collections from Firestore
   Future<void> clearScrapedData() async {
     try {
-      print('⚠️ Clearing all scraped data...');
+      debugPrint('⚠️ Clearing all scraped data...');
       _cachedCatalog = null;
       
       final batch = _db.batch();
@@ -630,9 +688,9 @@ class WebScraperService {
       }
 
       await batch.commit();
-      print('✅ All scraped data cleared');
+      debugPrint('✅ All scraped data cleared');
     } catch (e) {
-      print('❌ Error clearing data: $e');
+      debugPrint('❌ Error clearing data: $e');
     }
   }
 }

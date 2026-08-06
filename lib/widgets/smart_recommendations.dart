@@ -4,9 +4,7 @@ import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';
-import 'package:smartshopper_mobile/providers/firestore_budget_provider.dart';
 import 'package:smartshopper_mobile/services/ai_recommendation_service.dart';
-import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 // ─── Data classes ────────────────────────────────────────────────────────────
 

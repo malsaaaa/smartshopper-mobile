@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
-import 'package:smartshopper_mobile/config/routes.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/cart_provider.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
@@ -12,7 +11,7 @@ import 'package:smartshopper_mobile/widgets/ui_components.dart';
 /// the underlying gradient while the image decodes. Uses [Image.asset]'s frameBuilder
 /// to detect when the first image frame is available.
 class _HeaderImage extends StatefulWidget {
-  const _HeaderImage({Key? key}) : super(key: key);
+  const _HeaderImage();
 
   @override
   State<_HeaderImage> createState() => _HeaderImageState();
@@ -413,7 +412,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                                     ),
                                   ),
                                     TextButton(
-                                      onPressed: () => Navigator.pushNamed(context, RoutesConfig.home, arguments: {'initialTab': 1}),
+                                      onPressed: () => ref.read(homeTabIndexProvider.notifier).state = 1,
                                       child: const Text('Explore'),
                                     ),
                                 ],
@@ -499,8 +498,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                       );
                     }),
                     SectionHeader(
-                      title: 'Live Price Tracker',
-                      subtitle: 'Recently scanned supermarket prices',
+                      title: 'Updated Price Tracker',
+                      subtitle: 'Recently updated supermarket prices',
                       onViewAll: () {
                         Navigator.pushNamed(context, '/all-prices');
                       },
@@ -606,97 +605,100 @@ class _BudgetCard extends ConsumerWidget {
     final percentage = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
     final statusColor = isOverBudget ? AppTheme.error : AppTheme.secondary;
 
-    return BaseCard(
-      backgroundColor: Colors.white,
-      borderColor: AppTheme.divider,
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: BorderRadius.circular(2),
+    return GestureDetector(
+      onTap: () => ref.read(homeTabIndexProvider.notifier).state = 3,
+      child: BaseCard(
+        backgroundColor: Colors.white,
+        borderColor: AppTheme.divider,
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.account_balance_wallet_outlined,
-                            size: 18,
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.account_balance_wallet_outlined,
+                              size: 18,
+                              color: statusColor,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text('Monthly Budget', style: AppTypography.labelLarge),
+                          ],
+                        ),
+                        StatusBadge(
+                          label: isOverBudget ? 'Over Budget' : 'On Track',
+                          status: isOverBudget ? StatusType.error : StatusType.success,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          'RM${spent.toStringAsFixed(2)}',
+                          style: AppTypography.headline2.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'of RM${limit.toStringAsFixed(2)} limit',
+                          style: AppTypography.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: LinearProgressIndicator(
+                        value: percentage,
+                        minHeight: 8,
+                        backgroundColor: AppTheme.divider,
+                        valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          displayBudget.daysRemaining > 0
+                              ? '${displayBudget.daysRemaining} days remaining'
+                              : 'Budget period ended',
+                          style: AppTypography.bodySmall.copyWith(fontSize: 11),
+                        ),
+                        Text(
+                          '${(percentage * 100).toStringAsFixed(0)}% spent',
+                          style: AppTypography.bodySmall.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
                             color: statusColor,
                           ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Text('Monthly Budget', style: AppTypography.labelLarge),
-                        ],
-                      ),
-                      StatusBadge(
-                        label: isOverBudget ? 'Over Budget' : 'On Track',
-                        status: isOverBudget ? StatusType.error : StatusType.success,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        'RM${spent.toStringAsFixed(2)}',
-                        style: AppTypography.headline2.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.w800,
                         ),
-                      ),
-                      Text(
-                        'of RM${limit.toStringAsFixed(2)} limit',
-                        style: AppTypography.bodySmall,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    child: LinearProgressIndicator(
-                      value: percentage,
-                      minHeight: 8,
-                      backgroundColor: AppTheme.divider,
-                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        displayBudget.daysRemaining > 0
-                            ? '${displayBudget.daysRemaining} days remaining'
-                            : 'Budget period ended',
-                        style: AppTypography.bodySmall.copyWith(fontSize: 11),
-                      ),
-                      Text(
-                        '${(percentage * 100).toStringAsFixed(0)}% spent',
-                        style: AppTypography.bodySmall.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,8 +1,9 @@
 /// Product State Management with Firestore
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/services/firestore_product_service.dart';
-import 'package:smartshopper_mobile/utils/product_utils.dart';
 
 // ============== LOCAL SCAN / SCRAPE STORAGE (IN-MEMORY CACHE) ==============
 
@@ -225,9 +226,13 @@ String _getProductMatchKey(String name) {
   if (lower.contains('boh')) {
     final size = extractSize(lower);
     String type = 'regular';
-    if (lower.contains('green')) type = 'green';
-    else if (lower.contains('earl grey')) type = 'earlgrey';
-    else if (lower.contains('chamomile')) type = 'chamomile';
+    if (lower.contains('green')) {
+      type = 'green';
+    } else if (lower.contains('earl grey')) {
+      type = 'earlgrey';
+    } else if (lower.contains('chamomile')) {
+      type = 'chamomile';
+    }
     return 'boh_${type}_$size';
   }
 
@@ -243,11 +248,11 @@ String _getProductMatchKey(String name) {
   // ── 6. Aik Cheong / Nescafé / generic coffee-tea ─────────────────────────
   if (lower.contains('aik cheong') || lower.contains('aik_cheong')) {
     final size = extractSize(lower);
-    return 'aikcheong_${size}';
+    return 'aikcheong_$size';
   }
   if (lower.contains('nescafe') || lower.contains('nescafé')) {
     final size = extractSize(lower);
-    return 'nescafe_${size}';
+    return 'nescafe_$size';
   }
 
   // ── Fallback: preserve full normalized name (size included) ───────────────
@@ -378,8 +383,8 @@ final pricesForProductProvider = Provider.family<List<Price>, int>((ref, product
             if (existing == null) {
               uniquePrices[price.retailerId] = price;
             } else {
-              final existingTime = existing.scrapedAt ?? existing.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-              final newTime = price.scrapedAt ?? price.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final existingTime = existing.scrapedAt;
+              final newTime = price.scrapedAt;
               if (newTime.isAfter(existingTime)) {
                 uniquePrices[price.retailerId] = price;
               }

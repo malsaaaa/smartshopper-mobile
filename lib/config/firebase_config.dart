@@ -21,7 +21,7 @@ Future<void> initializeFCM({
 }) async {
   // Skip FCM initialization on web platforms
   if (kIsWeb) {
-    print('⚠️  FCM skipped on web. Push notifications only work on Android/iOS.');
+    debugPrint('⚠️  FCM skipped on web. Push notifications only work on Android/iOS.');
     return;
   }
   

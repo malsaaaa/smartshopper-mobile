@@ -166,7 +166,7 @@ class _FirebaseAuthScreenState extends ConsumerState<FirebaseAuthScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
-                        color: AppTheme.error.withOpacity(0.1),
+                        color: AppTheme.error.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(color: AppTheme.error),
                       ),

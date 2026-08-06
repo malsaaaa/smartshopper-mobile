@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -51,7 +52,7 @@ class MyAeon2GoScraper extends BaseScraper {
       // If a specific category/query is passed (e.g., from manual search)
       if (category != null && category.isNotEmpty) {
         final products = await _fetchProductsForQuery(category);
-        print('✅ myAEON2go: Scraped ${products.length} products for search category "$category"');
+        debugPrint('✅ myAEON2go: Scraped ${products.length} products for search category "$category"');
         return products;
       }
 
@@ -59,24 +60,24 @@ class MyAeon2GoScraper extends BaseScraper {
       final allProducts = <(Product, Price)>[];
 
       for (final term in searchTerms) {
-        print('🔄 myAEON2go: Scraping search results for "$term"...');
+        debugPrint('🔄 myAEON2go: Scraping search results for "$term"...');
         final products = await _fetchProductsForQuery(term);
 
         if (products.isNotEmpty) {
           allProducts.addAll(products);
-          print('✅ myAEON2go: Scraped ${products.length} products for "$term"');
+          debugPrint('✅ myAEON2go: Scraped ${products.length} products for "$term"');
         } else {
-          print('⚠️ myAEON2go: No products found for "$term"');
+          debugPrint('⚠️ myAEON2go: No products found for "$term"');
         }
 
         // Polite delay of 500ms between search requests
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      print('✅ myAEON2go: Scraped a total of ${allProducts.length} products across all search terms');
+      debugPrint('✅ myAEON2go: Scraped a total of ${allProducts.length} products across all search terms');
       return allProducts;
     } catch (e) {
-      print('❌ myAEON2go scraping error: $e');
+      debugPrint('❌ myAEON2go scraping error: $e');
       return [];
     }
   }
@@ -94,7 +95,7 @@ class MyAeon2GoScraper extends BaseScraper {
       final price = _mapPrice(item, product.id, productUrl: url);
       return (product, price);
     } catch (e) {
-      print('❌ myAEON2go product URL scraping error: $e');
+      debugPrint('❌ myAEON2go product URL scraping error: $e');
       return null;
     }
   }
@@ -140,8 +141,8 @@ class MyAeon2GoScraper extends BaseScraper {
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
-        print('❌ myAEON2go search page failed: ${response.statusCode} (Datadome anti-bot block)');
-        print('ℹ️ Activating fail-safe Demo Mock Fallback for query "$query"...');
+        debugPrint('❌ myAEON2go search page failed: ${response.statusCode} (Datadome anti-bot block)');
+        debugPrint('ℹ️ Activating fail-safe Demo Mock Fallback for query "$query"...');
         return _getDemoMockProducts(query);
       }
 
@@ -151,14 +152,14 @@ class MyAeon2GoScraper extends BaseScraper {
       const startKeyword = "let PhoenixAppState = '";
       final startIndex = html.indexOf(startKeyword);
       if (startIndex == -1) {
-        print('❌ myAEON2go: let PhoenixAppState not found in HTML for query "$query"');
+        debugPrint('❌ myAEON2go: let PhoenixAppState not found in HTML for query "$query"');
         return [];
       }
 
       final valueStart = startIndex + startKeyword.length;
       final valueEnd = html.indexOf("';", valueStart);
       if (valueEnd == -1) {
-        print('❌ myAEON2go: End of PhoenixAppState string not found for query "$query"');
+        debugPrint('❌ myAEON2go: End of PhoenixAppState string not found for query "$query"');
         return [];
       }
 
@@ -169,7 +170,7 @@ class MyAeon2GoScraper extends BaseScraper {
 
       return _parseStateResponse(decoded);
     } catch (e) {
-      print('❌ myAEON2go: Error fetching/parsing search for "$query": $e');
+      debugPrint('❌ myAEON2go: Error fetching/parsing search for "$query": $e');
       return [];
     }
   }

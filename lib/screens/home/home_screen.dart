@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartshopper_mobile/config/app_theme.dart';
 import 'package:smartshopper_mobile/providers/index.dart';
+import 'package:smartshopper_mobile/services/location_service.dart';
 import 'package:smartshopper_mobile/screens/home/widgets/budget_tab.dart';
 import 'package:smartshopper_mobile/screens/home/widgets/home_tab.dart';
 import 'package:smartshopper_mobile/screens/home/widgets/notification_button.dart';
@@ -20,15 +21,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  late int _selectedTab;
 
   @override
   void initState() {
     super.initState();
-    _selectedTab = widget.initialTab;
+    LocationService.clearCache(); // Force-clear coordinates cache to resolve any stale or incorrect POI mappings!
     // Pre-cache the welcome header background so it doesn't flash the green gradient
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(const AssetImage('assets/images/backgrounds/main-bg.png'), context);
+      ref.read(homeTabIndexProvider.notifier).state = widget.initialTab;
     });
   }
 
@@ -42,6 +43,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedTab = ref.watch(homeTabIndexProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -71,10 +74,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SizedBox(width: AppSpacing.sm),
         ],
       ),
-      body: _tabs[_selectedTab],
+      body: _tabs[selectedTab],
       bottomNavigationBar: _CustomNavBar(
-        selectedIndex: _selectedTab,
-        onTap: (i) => setState(() => _selectedTab = i),
+        selectedIndex: selectedTab,
+        onTap: (i) => ref.read(homeTabIndexProvider.notifier).state = i,
       ),
     );
   }

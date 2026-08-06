@@ -50,7 +50,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onChanged: (value) {
                   ref.read(notificationPreferencesProvider.notifier).setPushNotifications(value);
                 },
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -79,7 +79,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onChanged: (value) {
                   ref.read(notificationPreferencesProvider.notifier).setPriceAlerts(value);
                 },
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -99,7 +99,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onChanged: (value) {
                   ref.read(notificationPreferencesProvider.notifier).setBudgetAlerts(value);
                 },
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -119,7 +119,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onChanged: (value) {
                   ref.read(notificationPreferencesProvider.notifier).setShoppingReminders(value);
                 },
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.xxl),
@@ -146,7 +146,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onChanged: (value) {
                   ref.read(notificationPreferencesProvider.notifier).setPromotions(value);
                 },
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -166,7 +166,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onChanged: (value) {
                   ref.read(notificationPreferencesProvider.notifier).setWeeklyDigest(value);
                 },
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
             ),
             const SizedBox(height: AppSpacing.xxl),
@@ -175,10 +175,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppTheme.primaryLight.withOpacity(0.3),
+                color: AppTheme.primaryLight.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
-                  color: AppTheme.primary.withOpacity(0.2),
+                  color: AppTheme.primary.withValues(alpha: 0.2),
                 ),
               ),
               child: Row(

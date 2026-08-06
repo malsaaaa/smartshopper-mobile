@@ -5,6 +5,7 @@ import 'package:smartshopper_mobile/data/models/index.dart';
 import 'package:smartshopper_mobile/providers/firestore_shopping_list_provider.dart';
 import 'package:smartshopper_mobile/providers/product_provider.dart';
 import 'package:smartshopper_mobile/widgets/ui_components.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Detailed shopping list view with item management
 class ShoppingListDetailScreen extends ConsumerStatefulWidget {
@@ -184,9 +185,9 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
         vertical: AppSpacing.lg,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -233,7 +234,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
               child: _buildItemCard(list, item, prices),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -271,7 +272,8 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
                 isPurchased: value ?? false,
               );
             },
-            activeColor: AppTheme.primary,
+            fillColor: WidgetStateProperty.resolveWith((states) =>
+                states.contains(WidgetState.selected) ? AppTheme.primary : null),
           ),
           const SizedBox(width: AppSpacing.md),
 
@@ -519,7 +521,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.1),
+                color: AppTheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Text(
@@ -535,15 +537,28 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Redirecting to $retailerName...'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-              // TODO: Implement actual URL launch to retailer website
+              // Map retailer name to their website URL
+              final retailerUrls = {
+                'myaeon2go': 'https://myaeon2go.com',
+                'aeon': 'https://myaeon2go.com',
+                'mydin': 'https://mydin.com.my',
+                'lotus': 'https://www.lotusonline.com.my',
+                'lotus\'s': 'https://www.lotusonline.com.my',
+              };
+              final key = retailerName.toLowerCase().trim();
+              final urlStr = retailerUrls[key] ?? 'https://www.google.com/search?q=$retailerName+online+grocery';
+              final uri = Uri.parse(urlStr);
+              // Capture messenger before async gap
+              final messenger = ScaffoldMessenger.of(context);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } else if (mounted) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Could not open $retailerName website')),
+                );
+              }
             },
             child: const Text('Continue'),
           ),
@@ -561,7 +576,7 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Add Item to List'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -619,11 +634,15 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
               final price = double.tryParse(_priceController.text) ?? 0.0;
 
               if (name.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('Product name is required')),
                 );
                 return;
               }
+
+              // Capture before async gap
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(dialogContext);
 
               // Add item to Firestore
               await ref
@@ -637,8 +656,8 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
                   );
 
               if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
+                nav.pop();
+                messenger.showSnackBar(
                   const SnackBar(content: Text('Item added successfully')),
                 );
               }
@@ -662,8 +681,8 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setStateDialog) {
           return AlertDialog(
             title: const Text('Edit Shopping List'),
             content: Column(
@@ -722,13 +741,17 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
               ElevatedButton(
                 onPressed: () async {
                   if (newName.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
                       const SnackBar(
                         content: Text('List name cannot be empty'),
                       ),
                     );
                     return;
                   }
+
+                  // Capture before async gap
+                  final messenger = ScaffoldMessenger.of(context);
+                  final nav = Navigator.of(dialogContext);
 
                   // Update the list in Firestore
                   await ref
@@ -743,8 +766,8 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
                   budgetController.dispose();
 
                   if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    nav.pop();
+                    messenger.showSnackBar(
                       const SnackBar(
                         content: Text('List updated successfully'),
                       ),
@@ -764,14 +787,14 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
   void _showDeleteConfirmationDialog(ShoppingList list) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Shopping List'),
         content: Text(
           'Are you sure you want to delete "${list.name}"? This action cannot be undone.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -779,6 +802,10 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
               backgroundColor: AppTheme.error,
             ),
             onPressed: () async {
+              // Capture before async gap — declared outside try/catch for full scope
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(dialogContext);
+              final outerNav = Navigator.of(context);
               try {
                 // Delete the list from Firestore
                 await ref
@@ -787,10 +814,10 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
 
                 if (mounted) {
                   // Close dialog first
-                  Navigator.pop(context);
+                  nav.pop();
                   
                   // Show snackbar in the current scaffold context (detail screen)
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('"${list.name}" has been deleted'),
                       duration: const Duration(seconds: 2),
@@ -800,13 +827,13 @@ class _ShoppingListDetailScreenState extends ConsumerState<ShoppingListDetailScr
                   // Then navigate back after a short delay to ensure snackbar is visible
                   await Future.delayed(const Duration(milliseconds: 300));
                   if (mounted) {
-                    Navigator.pop(context);
+                    outerNav.pop();
                   }
                 }
               } catch (e) {
                 if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  nav.pop();
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('Error deleting list: $e'),
                       backgroundColor: AppTheme.error,
