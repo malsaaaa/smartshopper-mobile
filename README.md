@@ -35,6 +35,9 @@ A comprehensive, production-ready Flutter-based smart shopping assistant applica
 * **Stable ID Mapping**: Implements a DJB2 hashing algorithm to convert alphanumeric string document IDs (common in scraped retail data) into unique, stable 31-bit Dart integers, avoiding ID collisions.
 * **Robust Date Parser**: A dynamic wrapper parses both native Firestore `Timestamp` objects and ISO 8601 string dates, protecting the app against runtime `NoSuchMethodError` crashes.
 * **Forgot Password Flow**: Fully integrated password reset flow backed by Firebase Authentication.
+* **Clean Code Health**: Checked and verified that `flutter analyze` runs 100% clean with zero warnings or errors.
+* **Async Gap Resilience**: Re-scoped `ScaffoldMessenger` and `Navigator` contexts to resolve async-gap warning issues, preventing unmounted widget context exceptions.
+* **Modern Geolocation Settings**: Refactored location-fetching parameters using the modern `LocationSettings` object, replacing deprecated parameters for newer API versions.
 
 ---
 
